@@ -13,7 +13,7 @@ Open http://localhost:5173/#/start. That's the start of the key journey: a remin
 
 To build a static copy: `npm run build`, then serve `dist/` from any static host (it uses relative paths and hash routing).
 
-Pushing to `master` deploys to GitHub Pages (`.github/workflows/deploy.yml`; you can also run it by hand from the Actions tab). One-time setup: in the repo's Settings › Pages, set Source to “GitHub Actions”.
+Pushing to `main` deploys to GitHub Pages (`.github/workflows/deploy.yml`; you can also run it by hand from the Actions tab). One-time setup: in the repo's Settings › Pages, set Source to “GitHub Actions”.
 
 ## Try this (about 3 minutes)
 

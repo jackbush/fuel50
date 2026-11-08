@@ -58,7 +58,7 @@ Other visit types (switch in the prototype sidebar): **First visit** (Home leads
 - `npm install` then `npm run dev` (http://localhost:5173/#/start)
 - `npm run build` — typecheck + production build into `dist/` (static, relative paths; HashRouter so it works on any static host)
 - `npm run typecheck`
-- Deploy: pushing to `master` runs `.github/workflows/deploy.yml`, which builds and publishes `dist/` to GitHub Pages
+- Deploy: pushing to `main` runs `.github/workflows/deploy.yml`, which builds and publishes `dist/` to GitHub Pages
 - `npm run tweak` — saves what the sidebar’s “Copy changes” copied (reads the clipboard; or `-- file.json`, `-- -` for stdin, `--dry-run` to preview). Validates every key and range and writes nothing if anything is wrong.
 
 ## Conventions
