@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react'
-import { person, skills, type Level } from './data'
+import { LAST_VISIT, TODAY, paths, person, skills, type Level } from './data'
 import { TENANTS, resolveTenant, type Tenant, type Role } from './ia'
 import { useTweaks } from './tweaks'
 
-/** How someone is using Fuel50 today. Drives Home and guidance, never the structure. */
+/** How someone is using Fuel50 today. Drives Home and tasks, never the structure. */
 export type VisitMode = 'first' | 'returner' | 'leader'
 
 export interface Origin { label: string; path: string }
@@ -16,12 +16,16 @@ export interface State {
   assessmentDone: boolean
   applications: { gigId: string; status: 'Under review'; managerTold: boolean }[]
   mentorRequests: string[]
+  /** Your saved career path. Its second step is your target role. */
+  pathId: string
   courses: string[]
-  goals: string[]
+  /** Hours done on courses you've started. */
+  courseProgress: Record<string, number>
   aboutDone: boolean
   values: string[]
   origin: Origin | null
-  lastAction: { label: string; path: string } | null
+  /** When anything in your plan last changed; null before you've started one. */
+  planUpdated: string | null
   guidanceHidden: boolean
   teamRatings: Record<string, Record<string, Level>>
   toasts: Toast[]
@@ -36,13 +40,13 @@ export const initialState = (keep?: Partial<State>): State => ({
   assessmentDone: false,
   applications: [],
   mentorRequests: [],
-  courses: [],
-  goals: [],
+  pathId: paths[0].id,
+  courses: ['first-time-leader'],
+  courseProgress: { 'first-time-leader': 2 },
   aboutDone: true,
   values: ['Making an impact', 'Learning new things', 'Autonomy'],
   origin: null,
-  // Labels may hold {term} placeholders; they're filled with the client's words when shown.
-  lastAction: { label: 'Saved the “Sales leadership” career {path.one}', path: '/explore/paths' },
+  planUpdated: LAST_VISIT,
   guidanceHidden: false,
   teamRatings: {},
   toasts: [],
@@ -51,6 +55,7 @@ export const initialState = (keep?: Partial<State>): State => ({
 
 type Action =
   | { type: 'setTenant'; id: string }
+  | { type: 'setPath'; id: string }
   | { type: 'setMode'; mode: VisitMode }
   | { type: 'rate'; skillId: string; level: Level }
   | { type: 'completeAssessment' }
@@ -58,17 +63,18 @@ type Action =
   | { type: 'markTold'; gigId: string }
   | { type: 'requestMentor'; id: string; name: string }
   | { type: 'addCourse'; id: string; title: string }
-  | { type: 'addGoal'; text: string }
   | { type: 'completeAbout'; values: string[] }
   | { type: 'setOrigin'; origin: Origin | null }
   | { type: 'rateReport'; reportId: string; skillId: string; level: Level }
   | { type: 'toggleGuidance' }
   | { type: 'dismissToast'; id: number }
+  /** A control for something out of the prototype's scope: say so instead of doing nothing. */
+  | { type: 'notInPrototype'; what: string }
   | { type: 'reset' }
 
 /** A first visit has nothing to carry over. */
 const firstVisit = (keep: Partial<State>) =>
-  initialState({ ...keep, mode: 'first', aboutDone: false, values: [], lastAction: null, ratings: Object.fromEntries(skills.map(s => [s.id, null])) })
+  initialState({ ...keep, mode: 'first', aboutDone: false, values: [], courses: [], courseProgress: {}, planUpdated: null, ratings: Object.fromEntries(skills.map(s => [s.id, null])) })
 
 let toastId = 1
 const toast = (s: State, text: string, link?: Toast['link']): Toast[] => [...s.toasts, { id: toastId++, text, link }]
@@ -76,6 +82,11 @@ const toast = (s: State, text: string, link?: Toast['link']): Toast[] => [...s.t
 function reducer(s: State, a: Action): State {
   switch (a.type) {
     case 'setTenant': return { ...s, tenantId: a.id }
+    case 'setPath': {
+      const p = paths.find(x => x.id === a.id)
+      if (!p || p.id === s.pathId) return s
+      return { ...s, pathId: p.id, planUpdated: TODAY, toasts: toast(s, `Saved. Your target {role.one} is now ${p.steps[1]}.`, { label: 'See what to develop', path: '/#develop-h' }) }
+    }
     case 'setMode': {
       // Switching mode resets the journey so each mode starts clean.
       if (a.mode === 'first') return firstVisit({ tenantId: s.tenantId })
@@ -85,7 +96,6 @@ function reducer(s: State, a: Action): State {
     case 'completeAssessment':
       return {
         ...s, assessmentDone: true,
-        lastAction: { label: 'Updated your {skill.many}', path: '/growth/skills' },
         toasts: toast(s, `Sent to ${person.manager}. Your {skill.many} are up to date.`),
       }
     case 'apply':
@@ -93,8 +103,8 @@ function reducer(s: State, a: Action): State {
       return {
         ...s,
         applications: [...s.applications, { gigId: a.gigId, status: 'Under review', managerTold: a.managerTold }],
-        lastAction: { label: `Applied for “${a.title}”`, path: `/explore/gigs/${a.gigId}` },
-        toasts: toast(s, `Applied for “${a.title}”. It’s in your {plan.one}.`, { label: 'View', path: '/growth/plan' }),
+        planUpdated: TODAY,
+        toasts: toast(s, `Applied for “${a.title}”. It’s in your {plan.one}.`, { label: 'View', path: '/#plan' }),
       }
     case 'markTold':
       return {
@@ -107,31 +117,32 @@ function reducer(s: State, a: Action): State {
       return {
         ...s,
         mentorRequests: [...s.mentorRequests, a.id],
-        lastAction: { label: `Asked ${a.name} to be your {mentor.one}`, path: '/explore/mentors' },
-        toasts: toast(s, `Request sent to ${a.name}. It’s in your {plan.one}.`, { label: 'View', path: '/growth/plan' }),
+        planUpdated: TODAY,
+        toasts: toast(s, `Request sent to ${a.name}. It’s in your {plan.one}.`, { label: 'View', path: '/#plan' }),
       }
     case 'addCourse':
       if (s.courses.includes(a.id)) return s
       return {
         ...s,
         courses: [...s.courses, a.id],
-        lastAction: { label: `Added “${a.title}” to your {plan.one}`, path: '/explore/learning' },
-        toasts: toast(s, `“${a.title}” added to your {plan.one}.`, { label: 'View', path: '/growth/plan' }),
+        planUpdated: TODAY,
+        toasts: toast(s, `“${a.title}” added to your {plan.one}.`, { label: 'View', path: '/#plan' }),
       }
-    case 'addGoal':
-      if (s.goals.includes(a.text)) return s
-      return { ...s, goals: [...s.goals, a.text], toasts: toast(s, 'Goal added to your {plan.one}.', { label: 'View', path: '/growth/plan' }) }
     case 'completeAbout': return { ...s, aboutDone: true, values: a.values, toasts: toast(s, 'Saved. Next: rate your {skill.many}.', { label: 'Rate now', path: '/growth/skills' }) }
     case 'setOrigin': return { ...s, origin: a.origin }
     case 'rateReport':
       return { ...s, teamRatings: { ...s.teamRatings, [a.reportId]: { ...(s.teamRatings[a.reportId] ?? {}), [a.skillId]: a.level } } }
     case 'toggleGuidance': return { ...s, guidanceHidden: !s.guidanceHidden }
     case 'dismissToast': return { ...s, toasts: s.toasts.filter(t => t.id !== a.id) }
-    case 'reset': return s.mode === 'first' ? firstVisit({ tenantId: s.tenantId }) : initialState({ tenantId: s.tenantId, mode: s.mode })
+    case 'notInPrototype': return { ...s, toasts: toast(s, `${a.what} aren’t part of this prototype.`) }
+    case 'reset': {
+      const keep = { tenantId: s.tenantId }
+      return s.mode === 'first' ? firstVisit(keep) : initialState({ ...keep, mode: s.mode })
+    }
   }
 }
 
-const KEY = 'fuel50-proto-v2' // v2: applications record whether the manager knows
+const KEY = 'fuel50-proto-v4' // v4: saved path, plan date and course progress
 
 interface Ctx { state: State; dispatch: React.Dispatch<Action>; tenant: Tenant; role: Role }
 const StoreContext = createContext<Ctx | null>(null)

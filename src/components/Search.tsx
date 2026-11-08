@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { ADMIN_TOOLS, ITEMS, SPACES, cap, fill, isLanding, itemsInSpace, resolveItem, spaceLabel, term, visibleSpaces, type ItemId } from '../ia'
+import { ADMIN_TOOLS, ITEMS, SPACES, cap, fill, isLanding, itemsInSpace, pageTitle, resolveItem, spaceLabel, term, visibleSpaces } from '../ia'
 import { Icon } from './ui'
-import { courses, gigs, mentors, paths, skills, targetRole, vacancies } from '../data'
+import { courses, gigs, mentors, skills, vacancies } from '../data'
+import { savedPath, targetRole } from '../logic'
 
 interface Result { group: string; title: string; sub: string; path: string; via?: string; score: number }
 
@@ -35,23 +36,24 @@ export function useSearchIndex() {
       const q = norm(raw.trim())
       const out: Result[] = []
       for (const def of ITEMS) {
-        if (!spaces.includes(def.space)) continue
-        const it = resolveItem(tenant, def.id as ItemId)
-        if (!it) continue // hidden by this client: not findable
-        const landing = isLanding(def)
+        const it = resolveItem(tenant, def.id)
+        if (!it || !spaces.includes(it.space)) continue // hidden by this client, or not for this person: not findable
+        const landing = isLanding(it)
         // A space's own page is also found by the space's name.
         const spaceNames = SPACES.filter(sp => sp.path === def.path).map(sp => spaceLabel(tenant, sp.id))
-        const names = [it.label, it.canonicalLabel, fill(def.label, tenant), ...spaceNames, ...it.synonyms]
+        const names = [it.label, it.canonicalLabel, it.termLabel, ...spaceNames, ...it.synonyms]
         let best = 0, via: string | undefined
         // Out of the menu's context, “Overview” means nothing: a space's own page is found under the space's name.
-        const title = landing ? spaceLabel(tenant, def.space) : it.label
+        const title = pageTitle(tenant, it)
         names.forEach((n, i) => { const sc = scoreText(q, n) - (i > 0 ? 5 : 0); if (sc > best) { best = sc; via = i > 0 && n.toLowerCase() !== title.toLowerCase() ? n : undefined } })
         best = Math.max(best, scoreText(q, it.description) / 2)
-        if (best > 0) out.push({ group: 'Pages', title, sub: `${landing ? it.label : spaceLabel(tenant, def.space)} · ${it.description}`, path: it.path, via, score: best + 10 })
+        if (best > 0) out.push({ group: 'Pages', title, sub: `${landing ? it.label : spaceLabel(tenant, it.space)} · ${it.description}`, path: it.path, via, score: best + 10 })
       }
+      // Your target role and path are on Home, under Your growth; each skill is in Explore › Skills.
+      const skillsPath = resolveItem(tenant, 'skill-library')?.path ?? '/growth/skills'
       const mine: Result[] = [
-        { group: 'Your stuff', title: targetRole.title, sub: `Your target ${t('role', 1)}`, path: '/growth/targets', score: 0 },
-        ...paths.filter(p => p.saved).map(p => ({ group: 'Your stuff', title: p.title, sub: `Saved career ${t('path', 1)}`, path: '/explore/paths', score: 0 })),
+        { group: 'Your stuff', title: targetRole(state), sub: `Your target ${t('role', 1)}`, path: '/#growth', score: 0 },
+        { group: 'Your stuff', title: savedPath(state).title, sub: `Your career ${t('path', 1)}`, path: '/#growth', score: 0 },
         ...state.applications.map(a => ({ group: 'Your stuff', title: gigs.find(g => g.id === a.gigId)!.title, sub: `${cap(t('gig', 1))} application · ${a.status}`, path: `/explore/gigs/${a.gigId}`, score: 0 })),
       ]
       mine.forEach(m => { const sc = Math.max(scoreText(q, m.title), scoreText(q, m.sub)); if (sc) out.push({ ...m, score: sc + 5 }) })
@@ -62,10 +64,10 @@ export function useSearchIndex() {
         ...(resolveItem(tenant, 'vacancies') ? vacancies.map(v => ({ group: 'Opportunities', title: v.title, sub: `${cap(t('vacancy', 1))} · ${v.location}`, path: '/explore/vacancies', score: 0 })) : []),
       ]
       opp.forEach(o => { const sc = Math.max(scoreText(q, o.title), scoreText(q, o.sub) / 2); if (sc) out.push({ ...o, score: sc }) })
-      skills.forEach(s => { const sc = scoreText(q, s.name); if (sc) out.push({ group: cap(t('skill')), title: s.name, sub: 'Your rating and what it’s needed for', path: `/growth/skills#skill-${s.id}`, score: sc }) })
+      skills.forEach(s => { const sc = scoreText(q, s.name); if (sc) out.push({ group: cap(t('skill')), title: s.name, sub: 'Your rating and what it’s needed for', path: `${skillsPath}#skill-${s.id}`, score: sc }) })
       return out.sort((a, b) => b.score - a.score).slice(0, 12)
     }
-  }, [tenant, role, state.applications])
+  }, [tenant, role, state])
 }
 
 export function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -129,7 +131,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
           <div className="palette-empty">
             <p>Nothing found for “{q}”. Try a shorter word, or go to:</p>
             <div className="chips">
-              {visibleSpaces(role).filter(sp => sp.id !== 'home').flatMap(sp => itemsInSpace(tenant, sp.id)).slice(0, 6).map(it => (
+              {visibleSpaces(role).filter(sp => sp.nav === 'menu').flatMap(sp => itemsInSpace(tenant, sp.id)).slice(0, 6).map(it => (
                 <button key={it.id} className="chip-btn" onClick={() => { onClose(); dispatch({ type: 'setOrigin', origin: null }); nav(it.path) }}>{it.label}</button>
               ))}
             </div>

@@ -4,14 +4,16 @@ import { TopNav, Breadcrumbs, ReturnBanner, Toasts } from './components/nav'
 import { SearchPalette } from './components/Search'
 import { ProtoPanel } from './components/ProtoPanel'
 import { Start } from './pages/Start'
-import { Home } from './pages/Home'
-import { Skills, TargetRoles, Plan, AboutMe } from './pages/Growth'
-import { ExploreOverview, Gigs, GigDetail, Mentors, Learning, Vacancies, CareerPaths } from './pages/Explore'
+import { Home, Tasks } from './pages/Home'
+import { Skills, AboutMe } from './pages/Growth'
+import { ExploreOverview, SkillLibrary, Roles, Gigs, GigDetail, Mentors, Learning, Vacancies, CareerPaths } from './pages/Explore'
 import { Team, Reviews, Mentees } from './pages/Team'
 import { Admin, NotFound } from './pages/Misc'
+import { CoachChat } from './components/Coach'
 
 export default function App() {
   const [searchOpen, setSearchOpen] = useState(false)
+  const [coachOpen, setCoachOpen] = useState(false)
   const loc = useLocation()
 
   // ⌘K / Ctrl+K opens search from anywhere; “/” too when not typing.
@@ -36,7 +38,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <TopNav onSearch={() => setSearchOpen(true)} />
+      <TopNav onSearch={() => setSearchOpen(true)} onCoach={() => setCoachOpen(true)} />
       <div className="subbar">
         <Breadcrumbs />
         <ReturnBanner />
@@ -44,13 +46,16 @@ export default function App() {
       <main id="main">
         <Routes>
           <Route path="/" element={<Home />} />
-          {/* The old My growth page is Home now; keep old links working. */}
+          <Route path="/tasks" element={<Tasks />} />
+          {/* My growth, its target roles and its plan are all on Home now; keep old links working. */}
           <Route path="/growth" element={<Navigate to="/" replace />} />
+          <Route path="/growth/targets" element={<Navigate to={{ pathname: '/', hash: '#growth' }} replace />} />
+          <Route path="/growth/plan" element={<Navigate to={{ pathname: '/', hash: '#plan' }} replace />} />
           <Route path="/growth/skills" element={<Skills />} />
-          <Route path="/growth/targets" element={<TargetRoles />} />
-          <Route path="/growth/plan" element={<Plan />} />
           <Route path="/growth/about" element={<AboutMe />} />
           <Route path="/explore" element={<ExploreOverview />} />
+          <Route path="/explore/skills" element={<SkillLibrary />} />
+          <Route path="/explore/roles" element={<Roles />} />
           <Route path="/explore/paths" element={<CareerPaths />} />
           <Route path="/explore/gigs" element={<Gigs />} />
           <Route path="/explore/gigs/:id" element={<GigDetail />} />
@@ -65,8 +70,10 @@ export default function App() {
         </Routes>
       </main>
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <CoachChat open={coachOpen} onClose={() => setCoachOpen(false)} />
       <Toasts />
       <ProtoPanel />
     </div>
   )
 }
+

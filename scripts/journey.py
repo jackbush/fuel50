@@ -48,7 +48,7 @@ with sync_playwright() as p:
     pg.locator(".pp-segment").get_by_text("Northbank (renamed)").click(); pg.wait_for_timeout(300); shot("11_northbank_home")
     pg.keyboard.press("Control+k"); pg.keyboard.type("mentor"); pg.wait_for_timeout(200); shot("12_northbank_search")
     pg.keyboard.press("Escape")
-    pg.goto(BASE + "#/growth/targets"); pg.wait_for_timeout(300); shot("13_targets_northbank")
+    pg.goto(BASE + "#/#growth"); pg.wait_for_timeout(300); shot("13_growth_northbank")
     # leader mode
     pg.locator(".pp-choice", has_text="Weekly manager").click(); pg.wait_for_timeout(300); shot("14_leader_team")
     pg.goto(BASE + "#/team/reviews"); pg.wait_for_timeout(300)

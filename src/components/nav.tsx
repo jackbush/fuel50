@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { cap, fill, isLanding, term, itemsInSpace, spaceLabel, visibleSpaces, itemForPath, SPACES, resolveItem, type ItemId } from '../ia'
-import { nextStep } from '../logic'
+import { cap, fill, isLanding, term, itemsInSpace, spaceLabel, spaceBlurb, visibleSpaces, itemForPath, SPACES, resolveItem, type ItemId } from '../ia'
+import { tasks } from '../logic'
 import { gigById, person } from '../data'
 import { Icon } from './ui'
 import logo from '../assets/fuel50-logo.svg'
@@ -27,16 +27,14 @@ export function CrossLink({ to, from, children, className }: { to: string; from:
   )
 }
 
-export function TopNav({ onSearch }: { onSearch: () => void }) {
-  const { state, tenant, role, dispatch } = useStore()
+export function TopNav({ onSearch, onCoach }: { onSearch: () => void; onCoach: () => void }) {
+  const { tenant, role, dispatch } = useStore()
   const [open, setOpen] = useState<string | null>(null)
   const openRef = useRef(open)
   openRef.current = open
   const loc = useLocation()
-  const nav = useNavigate()
   const ref = useRef<HTMLDivElement>(null)
   const current = itemForPath(loc.pathname)
-  const step = nextStep(state, tenant)
 
   useEffect(() => setOpen(null), [loc.pathname])
   useEffect(() => {
@@ -54,7 +52,6 @@ export function TopNav({ onSearch }: { onSearch: () => void }) {
 
   // Main navigation is a deliberate jump: forget any cross-module origin.
   const clearOrigin = () => dispatch({ type: 'setOrigin', origin: null })
-  const go = (path: string) => { clearOrigin(); nav(path) }
 
   return (
     <header className="topbar" ref={ref}>
@@ -64,8 +61,13 @@ export function TopNav({ onSearch }: { onSearch: () => void }) {
       </Link>
       <nav aria-label="Main">
         <ul className="spaces">
-          {visibleSpaces(role).map(sp => {
+          {visibleSpaces(role).filter(sp => sp.nav !== 'account').map(sp => {
             const isCurrent = current?.space === sp.id
+            if (sp.nav === 'link') return (
+              <li key={sp.id}>
+                <Link to={sp.path} onClick={clearOrigin} className={'space' + (isCurrent ? ' current' : '')} aria-current={loc.pathname === sp.path ? 'page' : isCurrent ? 'true' : undefined}>{spaceLabel(tenant, sp.id)}</Link>
+              </li>
+            )
             const items = itemsInSpace(tenant, sp.id)
             if (items.length === 0) return null
             const expanded = open === sp.id
@@ -82,7 +84,7 @@ export function TopNav({ onSearch }: { onSearch: () => void }) {
                 </button>
                 {expanded && (
                   <div className="menu" id={`menu-${sp.id}`}>
-                    <p className="menu-blurb">{fill(sp.blurb, tenant)}</p>
+                    <p className="menu-blurb">{spaceBlurb(tenant, sp.id)}</p>
                     <ul className="plain-menu">
                       {items.map(it => (
                         <li key={it.id}>
@@ -101,15 +103,10 @@ export function TopNav({ onSearch }: { onSearch: () => void }) {
         </ul>
       </nav>
       <button className="search-trigger" onClick={onSearch} aria-label="Search" aria-keyshortcuts="Control+K Meta+K /">
-        <Icon name="search" /> <span className="search-text">Search pages, {term(tenant, 'gig')}, {term(tenant, 'skill')}…</span><kbd>⌘K</kbd>
+        <Icon name="search" /> <span className="search-text">Search pages, {term(tenant, 'gig')}, {term(tenant, 'skill')}…</span>
       </button>
-      <button
-        className="next-pill"
-        title={step.detail}
-        // Already there: take you to the page title rather than doing nothing.
-        onClick={() => (loc.pathname + loc.hash === step.path ? document.querySelector<HTMLElement>('main h1')?.focus() : go(step.path))}
-      >
-        <span className="dot" aria-hidden /> <span className="next-label">Next:</span> <span className="next-text">{step.title}</span>
+      <button className="coach-trigger" onClick={onCoach} aria-label="Chat to your coach">
+        <Icon name="chat" size={20} /><span className="coach-text">Chat to your coach</span>
       </button>
       <AvatarMenu open={open === 'avatar'} setOpen={o => setOpen(o ? 'avatar' : null)} onNavigate={clearOrigin} />
     </header>
@@ -117,18 +114,21 @@ export function TopNav({ onSearch }: { onSearch: () => void }) {
 }
 
 function AvatarMenu({ open, setOpen, onNavigate }: { open: boolean; setOpen: (o: boolean) => void; onNavigate: () => void }) {
-  const { tenant } = useStore()
-  const profile = resolveItem(tenant, 'about')
+  const { state, tenant } = useStore()
+  const profile = resolveItem(tenant, 'about'), tasksItem = resolveItem(tenant, 'tasks')
+  const n = tasks(state, tenant).length
   return (
     <div className="avatar-wrap">
-      <button className="avatar" aria-expanded={open} aria-controls="menu-avatar" onClick={() => setOpen(!open)} aria-label="Your account">
+      <button className="avatar" aria-expanded={open} aria-controls="menu-avatar" onClick={() => setOpen(!open)} aria-label={`Your account${n ? `, ${n} outstanding task${n === 1 ? '' : 's'}` : ''}`}>
         {person.name.split(' ').map(p => p[0]).join('')}
+        {n > 0 && <span className="alert-dot" aria-hidden />}
       </button>
       {open && (
         <div className="menu avatar-menu" id="menu-avatar">
           <p className="menu-blurb"><strong>{person.name}</strong><br />{person.role}</p>
           <ul className="plain-menu">
-            {profile && <li><Link className="menu-item" to={profile.path} onClick={onNavigate}><span className="menu-label">Your profile</span></Link></li>}
+            {profile && <li><Link className="menu-item" to={profile.path} onClick={onNavigate}><span className="menu-label">{spaceLabel(tenant, 'profile')}</span><span className="menu-desc">{spaceBlurb(tenant, 'profile')}</span></Link></li>}
+            {tasksItem && <li><Link className="menu-item" to={tasksItem.path} onClick={onNavigate}><span className="menu-label">{tasksItem.label} ({n}){n > 0 && <span className="alert-dot inline" aria-hidden />}</span></Link></li>}
             <li role="separator" className="menu-sep" />
             {/* Only admins see this in the product; the prototype shows it so the Admin space can be reached. */}
             <li><Link className="menu-item" to="/admin" onClick={onNavigate}><span className="menu-label">Open {spaceLabel(tenant, 'admin')}</span><span className="menu-desc">Set up skills, roles and reports for your organisation</span></Link></li>

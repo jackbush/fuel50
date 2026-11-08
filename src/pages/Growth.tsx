@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../store'
-import { cap, resolveItem, term, withArticle, type TermId } from '../ia'
-import { courses, gigs, LAST_VISIT, LEVELS, LEVEL_HELP, mentors, paths, person, skills, targetRole, DUE_DATE, type Level, type Skill } from '../data'
-import { actionsFor, bestAction, gaps, needsAttention, optionsForSkill, readiness } from '../logic'
-import { Card, Empty, Icon, LevelScale, LevelTag, PageHeader, Progress, SCALE_LABELS } from '../components/ui'
+import { cap, resolveItem, term, type TermId } from '../ia'
+import { LAST_VISIT, LEVELS, LEVEL_HELP, person, skills, DUE_DATE, type Level, type Skill } from '../data'
+import { gaps, needsAttention, optionsForSkill, readiness, targetRole } from '../logic'
+import { Card, Icon, LevelTag, PageHeader, Progress } from '../components/ui'
 import { CrossLink } from '../components/nav'
 
 const useTerm = () => {
@@ -139,29 +139,22 @@ export function Skills() {
   )
 }
 
-const FEEDBACK_GOAL = 'Ask two colleagues for feedback on my top skills'
-
 function SkillsDone() {
-  const { state, dispatch, tenant } = useStore()
+  const { state, tenant } = useStore()
   const t = useTerm()
   const r = readiness(state)
   const top = gaps(state)[0]
   const opts = top ? optionsForSkill(top.skill.id) : null
   const from = `your ${t('skill')} results`
-  const goalSet = state.goals.includes(FEEDBACK_GOAL)
   const mentorsItem = resolveItem(tenant, 'mentors'), learningItem = resolveItem(tenant, 'learning')
   return (
     <>
-      <PageHeader item="skills" title={`Your ${t('skill')} are up to date`} sub={`All ${skills.length} rated and sent. ${person.manager} can see them for your review.`}>
-        <button className={'btn' + (goalSet ? ' done' : ' ghost')} disabled={goalSet} onClick={() => dispatch({ type: 'addGoal', text: FEEDBACK_GOAL })}>
-          {goalSet ? <><Icon name="check" /> Feedback goal added</> : 'Add a feedback goal'}
-        </button>
-      </PageHeader>
+      <PageHeader item="skills" title={`Your ${t('skill')} are up to date`} sub={`All ${skills.length} rated and sent. ${person.manager} can see them for your review.`} />
       <div className="grid-2">
         {top && opts && (
           <Card className="next" label="Your next step">
             <h2>Grow {top.skill.name}</h2>
-            <p>You’re at <strong>{LEVELS[top.current]}</strong>; {targetRole.title} needs <strong>{LEVELS[top.target]}</strong>. Pick one way to start:</p>
+            <p>You’re at <strong>{LEVELS[top.current]}</strong>; {targetRole(state)} needs <strong>{LEVELS[top.target]}</strong>. Pick one way to start:</p>
             <ul className="options">
               {opts.gigs[0] && <li><CrossLink to={`/explore/gigs/${opts.gigs[0].id}`} from={from}><span className="opt-kind">{cap(t('gig', 1))}</span>{opts.gigs[0].title}<Icon name="arrow" /></CrossLink></li>}
               {opts.mentors[0] && mentorsItem && <li><CrossLink to={mentorsItem.path} from={from}><span className="opt-kind">{cap(t('mentor', 1))}</span>{opts.mentors[0].name}, {opts.mentors[0].role}<Icon name="arrow" /></CrossLink></li>}
@@ -171,10 +164,10 @@ function SkillsDone() {
         )}
         <Card>
           <h2 className="card-heading">Your target {t('role', 1)}</h2>
-          <p><strong>{targetRole.title}</strong></p>
+          <p><strong>{targetRole(state)}</strong></p>
           <Progress value={r.pct} />
           <p className="readiness small"><span>Ready on <strong>{r.ready} of {r.total}</strong> {t('skill')}</span></p>
-          <Link className="more" to="/growth/targets">See every gap <Icon name="arrow" /></Link>
+          <Link className="more" to={{ pathname: '/', hash: '#growth' }}>See every gap <Icon name="arrow" /></Link>
         </Card>
       </div>
       <details className="all-ratings">
@@ -183,120 +176,6 @@ function SkillsDone() {
           {skills.map(s => <li key={s.id}><span className="skill-name">{s.name}</span><LevelTag level={state.ratings[s.id]} /></li>)}
         </ul>
       </details>
-    </>
-  )
-}
-
-/* ---------------- Target roles ---------------- */
-
-export function TargetRoles() {
-  const { state, tenant } = useStore()
-  const t = useTerm()
-  const r = readiness(state)
-  const g = gaps(state)
-  const saved = paths.find(p => p.saved)!
-  const from = `your target ${t('role', 1)}`
-  const pathsItem = resolveItem(tenant, 'paths')
-  const best = bestAction(state)
-  return (
-    <>
-      <PageHeader item="targets" />
-      <Card>
-        <h2>{targetRole.title}</h2>
-        <p className="meta">Saved {targetRole.savedOn} · part of your “{saved.title}” career {t('path', 1)}{pathsItem && <> · <Link to={pathsItem.path}>Change</Link></>}</p>
-        <Progress value={r.pct} />
-        <p className="readiness"><span>Ready on <strong>{r.ready} of {r.total}</strong> {t('skill')}{!state.assessmentDone && ' (based on your last ratings)'}</span></p>
-      </Card>
-      <div className="section-head gaps-head">
-        <div>
-          <h2>Gaps, biggest first</h2>
-          <p className="meta">Each {t('skill', 1)} on the same scale. <span className="key-item"><span className="key key-have" />you have</span> <span className="key-item"><span className="key key-gap" />to close</span> <span className="key-item"><span className="key key-unknown" />not rated yet</span></p>
-        </div>
-        <ol className="scale-axis" aria-hidden>{SCALE_LABELS.map(l => <li key={l}>{l}</li>)}</ol>
-      </div>
-      {g.length === 0 && <Empty>No gaps. You’re ready for this {t('role', 1)} on every {t('skill', 1)}.</Empty>}
-      {g.length > 0 && <p className="meta reach-key"><span className="reach">+2</span> how many levels of your gaps an option works on. Options that work on two or more are highlighted; the strongest on this page is filled.</p>}
-      {g.map(gap => {
-        const actions = actionsFor(state, gap.skill.id)
-        return (
-          <Card key={gap.skill.id} id={`gap-${gap.skill.id}`} className="gap">
-            <div className="gap-main">
-              <h3>{gap.skill.name}</h3>
-              <div className="gap-opts">
-                {actions.map(a => {
-                  const isBest = best?.skillId === gap.skill.id && best.action.kind === a.kind && best.action.id === a.id
-                  return (
-                    <CrossLink key={a.kind + a.id} to={a.path} from={from} className={'opt' + (isBest ? ' is-best' : a.reach >= 2 ? ' is-strong' : '')}>
-                      <span className="opt-kind">{cap(t(a.kind, 1))}</span>{a.title}
-                      {a.reach > 0 && <span className="reach" title={`Works on ${a.reach} level${a.reach === 1 ? '' : 's'} of your gaps`}>+{a.reach}<span className="visually-hidden"> levels of your gaps</span></span>}
-                      {isBest && <span className="visually-hidden"> (strongest option on this page)</span>}
-                    </CrossLink>
-                  )
-                })}
-                {!actions.length && <span className="muted">No matches yet.</span>}
-              </div>
-            </div>
-            <LevelScale current={gap.current} target={gap.target} rated={gap.rated} />
-          </Card>
-        )
-      })}
-    </>
-  )
-}
-
-/* ---------------- My plan ---------------- */
-
-export function Plan() {
-  const { state, tenant, dispatch } = useStore()
-  const t = useTerm()
-  const item = (id: Parameters<typeof resolveItem>[1]) => resolveItem(tenant, id)
-  const gigsItem = item('gigs'), mentorsItem = item('mentors'), learningItem = item('learning'), pathsItem = item('paths')
-  const saved = paths.filter(p => p.saved)
-  const manager = person.manager.split(' ')[0]
-  return (
-    <>
-      <PageHeader item="plan" />
-      <div className="grid-2">
-        {pathsItem && (
-          <Card>
-            <h2 className="card-heading">Saved career {t('path')}</h2>
-            {saved.map(p => <div key={p.id}><Link to={pathsItem.path}><strong>{p.title}</strong></Link><p className="meta">{p.steps.join(' → ')}</p></div>)}
-          </Card>
-        )}
-        {gigsItem && (
-          <Card>
-            <h2 className="card-heading">{gigsItem.label}</h2>
-            {state.applications.length === 0 ? <Empty>No applications yet. <Link to={gigsItem.path}>Browse {gigsItem.label.toLowerCase()}</Link></Empty> :
-              <ul className="plain">{state.applications.map(a => {
-                const g = gigs.find(x => x.id === a.gigId)!
-                return (
-                  <li key={a.gigId}>
-                    <span><Link to={`/explore/gigs/${g.id}`}>{g.title}</Link>{!a.managerTold && <span className="meta"> · You said you’d tell {manager}. <button className="link" onClick={() => dispatch({ type: 'markTold', gigId: g.id })}>I’ve told {manager}</button></span>}</span>
-                    <span className="status">{a.status}</span>
-                  </li>
-                )
-              })}</ul>}
-          </Card>
-        )}
-        {mentorsItem && (
-          <Card>
-            <h2 className="card-heading">{mentorsItem.label}</h2>
-            {state.mentorRequests.length === 0 ? <Empty>No requests yet. <Link to={mentorsItem.path}>Find {withArticle(t('mentor', 1))}</Link></Empty> :
-              <ul className="plain">{state.mentorRequests.map(id => { const m = mentors.find(x => x.id === id)!; return <li key={id}>{m.name} <span className="status">Requested</span></li> })}</ul>}
-          </Card>
-        )}
-        {learningItem && (
-          <Card>
-            <h2 className="card-heading">{learningItem.label}</h2>
-            {state.courses.length === 0 ? <Empty>Nothing added yet. <Link to={learningItem.path}>Find {t('course')}</Link></Empty> :
-              <ul className="plain">{state.courses.map(id => { const c = courses.find(x => x.id === id)!; return <li key={id}>{c.title} <span className="status">{c.hours} h</span></li> })}</ul>}
-          </Card>
-        )}
-        <Card>
-          <h2 className="card-heading">Goals</h2>
-          {state.goals.length === 0 ? <Empty>No goals yet.</Empty> : <ul className="plain">{state.goals.map((g, i) => <li key={i}>{g}</li>)}</ul>}
-        </Card>
-      </div>
     </>
   )
 }

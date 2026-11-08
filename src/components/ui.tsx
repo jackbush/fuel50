@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useStore } from '../store'
-import { isLanding, resolveItem, spaceLabel, type ItemId } from '../ia'
+import { pageTitle, resolveItem, type ItemId } from '../ia'
 import { LEVELS, skillById, type Level } from '../data'
 
 /** Plain page title from the client’s label. Any slogan goes underneath, never instead. */
@@ -9,7 +9,7 @@ export function PageHeader({ item, title, sub, children }: { item?: ItemId; titl
   const resolved = item ? resolveItem(tenant, item) : null
   const h1 = useRef<HTMLHeadingElement>(null)
   // A space's own page is titled with the space's name, matching its breadcrumb.
-  const text = title ?? (resolved && (isLanding(resolved) ? spaceLabel(tenant, resolved.space) : resolved.label))
+  const text = title ?? (resolved && pageTitle(tenant, resolved))
   // A page that swaps its content without a route change (a finished task) still moves focus to its title.
   // Not when the title changed because someone is renaming things in the prototype sidebar.
   const first = useRef(true)
@@ -28,8 +28,9 @@ export function PageHeader({ item, title, sub, children }: { item?: ItemId; titl
   )
 }
 
-export function SkillChip({ id, kind }: { id: string; kind?: 'have' | 'grow' }) {
-  return <span className={'skill-chip' + (kind ? ' ' + kind : '')}>{skillById(id).name}</span>
+/** A skill an opportunity uses. Highlighted when it's one your target role needs you to grow. */
+export function SkillChip({ id, need }: { id: string; need?: boolean }) {
+  return <span className={'skill-chip' + (need ? ' need' : '')}>{skillById(id).name}{need && <span className="visually-hidden"> (you need this)</span>}</span>
 }
 
 export function LevelTag({ level }: { level: Level | null }) {
@@ -46,23 +47,23 @@ export function Progress({ value }: { value: number }) {
   )
 }
 
-/** The rating scale's names, short enough to sit under a segment. */
-export const SCALE_LABELS = LEVELS.map((l, i) => (i === 0 ? 'Not relevant' : l))
+const levelName = (l: Level) => `${l}. ${LEVELS[l]}`
 
 /**
- * One skill on the shared rating scale: a staircase of five segments from “Not relevant”
- * up to “Expert”, coloured for what you have, what's left to reach the target, and beyond.
+ * A skill level as four bars: green up to your level, dark for each level still needed to
+ * reach the target, light beyond it. Not rated counts as 0. The number is how far there is to go.
  */
-export function LevelScale({ current, target, rated }: { current: Level; target: Level; rated: boolean }) {
-  const state = (i: number) =>
-    i === 0 ? 'base' : rated && i <= current ? 'have' : i <= target ? (rated ? 'gap' : 'unknown') : 'beyond'
-  const now = rated ? LEVELS[current] : 'Not rated yet'
+export function LevelMeter({ level, target }: { level: Level | null; target: Level }) {
+  const n = level ?? 0
+  const gap = target - n
+  const now = level === null ? '0. Not rated' : levelName(level)
   return (
-    <div className="scale" role="img" aria-label={`${now}. Needs ${LEVELS[target]}.`}>
-      <div className="scale-track" aria-hidden>
-        {SCALE_LABELS.map((l, i) => <span key={l} className={'seg seg-' + state(i) + (i === target ? ' is-target' : '')} style={{ '--step': i } as React.CSSProperties} title={l} />)}
+    <div className="meter" role="img" aria-label={`${now}. Needs ${levelName(target)}.`}>
+      <div className="meter-row" aria-hidden>
+        <span className="meter-track">{[1, 2, 3, 4].map(i => <span key={i} className={'bar' + (i <= n ? ' have' : i <= target ? ' need' : '')} />)}</span>
+        <span className="meter-num">{gap > 0 ? `+${gap}` : '–'}</span>
       </div>
-      <p className="scale-caption" aria-hidden><span>{rated ? <>Now <strong>{now}</strong></> : now}</span><span>Needs <strong>{LEVELS[target]}</strong></span></p>
+      <p className="meter-caption" aria-hidden><span>Now <strong>{now}</strong></span><span>Needs <strong>{levelName(target)}</strong></span></p>
     </div>
   )
 }
@@ -83,6 +84,7 @@ const ICONS = {
   back: <path d="M19 12H5M11 18l-6-6 6-6" />,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   check: <path d="M5 12.5l4.5 4.5L19 7" />,
+  chat: <path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.1A8 8 0 1 1 20 12z" />,
 }
 
 export function Icon({ name, size = 16 }: { name: keyof typeof ICONS; size?: number }) {

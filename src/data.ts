@@ -6,7 +6,8 @@
 
 export const TODAY = 'Monday 16 June'
 export const LAST_VISIT = '12 December'
-export const DUE_DATE = '30 June'
+export const DUE_DATE = '24 June'
+export const DUE_IN_DAYS = 8 // from TODAY
 
 export const person = {
   name: 'Kimberley Thomas',
@@ -60,11 +61,13 @@ export const skills: Skill[] = [
   { id: 'change', name: 'Change management', description: 'Helping people through new ways of working.', type: 'strength', lastRating: null, target: 2 },
 ]
 
-export const targetRole = {
-  id: 'snr-mgr-product-sales',
-  title: 'Senior Manager, Product Sales',
-  function: 'Sales',
-  savedOn: '12 December',
+/**
+ * Each skill's `target` is what Senior Manager, Product Sales needs. Other roles a path
+ * leads to differ on a few skills; everything else is the same.
+ */
+export const ROLE_TARGETS: Record<string, Partial<Record<string, Level>>> = {
+  'Partnerships Manager': { bizdev: 4, negotiation: 4, 'market-analysis': 3, 'data-decisions': 2, 'brand-marketing': 1 },
+  'Product Marketing Manager': { 'brand-marketing': 3, 'market-analysis': 3, 'customer-insight': 4, presenting: 4, 'product-knowledge': 4, 'sales-strategy': 2, bizdev: 2, leadership: 2, forecasting: 1 },
 }
 
 export interface Gig {
@@ -105,6 +108,9 @@ export const courses: Course[] = [
   { id: 'brand-basics', title: 'Brand marketing for non-marketers', provider: 'LinkedIn Learning', hours: 2, skills: ['brand-marketing'] },
 ]
 
+/** How many of each the whole organisation has. The prototype shows a matched handful. */
+export const CATALOGUE = { gig: 433, mentor: 86, course: 1240 }
+
 export interface Vacancy { id: string; title: string; team: string; location: string; closesInDays: number }
 export const vacancies: Vacancy[] = [
   { id: 'v1', title: 'Senior Manager, Product Sales', team: 'Sales', location: 'Auckland', closesInDays: 18 },
@@ -112,11 +118,12 @@ export const vacancies: Vacancy[] = [
   { id: 'v3', title: 'Sales Operations Analyst', team: 'Sales Operations', location: 'Remote', closesInDays: 24 },
 ]
 
-export interface CareerPath { id: string; title: string; steps: string[]; saved: boolean }
+/** The first step is your role now; the second is the target role choosing the path sets. */
+export interface CareerPath { id: string; title: string; steps: string[] }
 export const paths: CareerPath[] = [
-  { id: 'path-sales', title: 'Sales leadership', steps: ['Product Sales Manager', 'Senior Manager, Product Sales', 'Head of Sales'], saved: true },
-  { id: 'path-partners', title: 'Partnerships', steps: ['Product Sales Manager', 'Partnerships Manager', 'Head of Partnerships'], saved: false },
-  { id: 'path-marketing', title: 'Into marketing', steps: ['Product Sales Manager', 'Product Marketing Manager', 'Brand Manager'], saved: false },
+  { id: 'path-sales', title: 'Sales leadership', steps: ['Product Sales Manager', 'Senior Manager, Product Sales', 'Head of Sales'] },
+  { id: 'path-partners', title: 'Partnerships', steps: ['Product Sales Manager', 'Partnerships Manager', 'Head of Partnerships'] },
+  { id: 'path-marketing', title: 'Into marketing', steps: ['Product Sales Manager', 'Product Marketing Manager', 'Brand Manager'] },
 ]
 
 /** Reports, for leader mode. */

@@ -1,32 +1,39 @@
 /**
- * Derived state: what needs attention, readiness for the target role, and the
- * single suggested next step. Keep this the only place that decides “what next”,
- * so Home, the nav pill and end-of-task panels always agree.
+ * Derived state: your path and target role, what needs attention, readiness, and the
+ * outstanding tasks. Keep `tasks()` the only place that decides “what next”, so Home,
+ * the tasks page, the account menu's count and the coach always agree.
  */
-import { courses, gigs, mentors, person, reports, skills, targetRole, DUE_DATE, type Level, type Skill } from './data'
+import { courses, gigs, mentors, paths, person, reports, skills, DUE_IN_DAYS, ROLE_TARGETS, type Level, type Skill } from './data'
 import { cap, resolveItem, term, type Tenant, type ItemId } from './ia'
 import type { State } from './store'
+
+export const savedPath = (state: State) => paths.find(p => p.id === state.pathId) ?? paths[0]
+export const targetRole = (state: State) => savedPath(state).steps[1]
+/** The level a role needs in a skill: your target role unless you name another. */
+export const targetFor = (state: State, s: Skill, role = targetRole(state)): Level => ROLE_TARGETS[role]?.[s.id] ?? s.target
 
 export function needsAttention(state: State): Skill[] {
   return skills.filter(s => s.change || state.ratings[s.id] === null)
 }
 
-/** `rated` is false when there's no rating yet: the gap is shown, but its size is a guess. */
+/** Not rated counts as level 0 in every sum; `rated` only says which it was, for labels. */
 export interface Gap { skill: Skill; current: Level; target: Level; size: number; rated: boolean }
 
 export function gaps(state: State): Gap[] {
   return skills
     .map(s => {
       const current = (state.ratings[s.id] ?? 0) as Level
-      return { skill: s, current, target: s.target, size: s.target - current, rated: state.ratings[s.id] !== null }
+      const target = targetFor(state, s)
+      return { skill: s, current, target, size: target - current, rated: state.ratings[s.id] !== null }
     })
     .filter(g => g.size > 0)
     .sort((a, b) => b.size - a.size || a.skill.name.localeCompare(b.skill.name))
 }
 
-export function readiness(state: State) {
-  const relevant = skills.filter(s => s.target > 0)
-  const ready = relevant.filter(s => (state.ratings[s.id] ?? 0) >= s.target).length
+/** How many of a role's skills you already meet: your target role unless you name another. */
+export function readiness(state: State, role = targetRole(state)) {
+  const relevant = skills.filter(s => targetFor(state, s, role) > 0)
+  const ready = relevant.filter(s => (state.ratings[s.id] ?? 0) >= targetFor(state, s, role)).length
   return { ready, total: relevant.length, pct: Math.round((ready / relevant.length) * 100) }
 }
 
@@ -44,12 +51,12 @@ export interface Action { kind: ActionKind; id: string; title: string; path: str
 /**
  * How much of your gaps an action works on: the levels between your rating and the
  * target, summed over the gap skills it grows. Not a promise of levels gained, which
- * nothing in the data can tell us. Unrated skills count 0 until they're rated.
+ * nothing in the data can tell us. A skill that isn't rated counts from 0.
  */
 export function actionsFor(state: State, skillId: string): Action[] {
-  const known = gaps(state).filter(g => g.rated)
+  const all = gaps(state)
   const score = (ids: string[]) => {
-    const hit = known.filter(g => ids.includes(g.skill.id))
+    const hit = all.filter(g => ids.includes(g.skill.id))
     return { reach: hit.reduce((n, g) => n + g.size, 0), spans: hit.length }
   }
   const o = optionsForSkill(skillId)
@@ -69,54 +76,58 @@ export function bestAction(state: State): { action: Action; skillId: string } | 
   return best
 }
 
-export interface NextStep { title: string; detail: string; path: string; cta: string }
+/** Skills below what your target role needs. Opportunities highlight these. */
+export const neededSkills = (state: State) => new Set(gaps(state).map(g => g.skill.id))
 
-const label = (t: Tenant, id: ItemId, fallback: string) => resolveItem(t, id)?.label ?? fallback
+/** A first visit before any ratings: gaps and suggestions would be guesses. */
+export const noRatingsYet = (state: State) => state.mode === 'first' && !state.assessmentDone
 
-/** Whether a “Start here” step is done. Only some steps can be finished in the prototype. */
+/** Options strong enough to recommend: two or more levels of your gaps, not yet in your plan. Strongest first. */
+export function recommendedActions(state: State): Action[] {
+  if (noRatingsYet(state)) return []
+  const taken = (a: Action) =>
+    a.kind === 'gig' ? state.applications.some(x => x.gigId === a.id) : a.kind === 'mentor' ? state.mentorRequests.includes(a.id) : state.courses.includes(a.id)
+  const seen = new Map<string, Action>()
+  for (const g of gaps(state)) for (const a of actionsFor(state, g.skill.id)) if (a.reach >= 2 && !taken(a)) seen.set(a.kind + a.id, a)
+  return [...seen.values()].sort((a, b) => b.reach - a.reach || b.spans - a.spans)
+}
+
+export interface Task { id: string; title: string; detail: string; path: string; cta: string; due?: string }
+
+const dueSoon = `Due in ${DUE_IN_DAYS} days`
+
+/** Whether a first-visit step (the client's `startHere`) is done. Only some steps can be finished in the prototype. */
 export const startStepDone = (state: State, id: ItemId) => (id === 'about' ? state.aboutDone : id === 'skills' ? state.assessmentDone : false)
 
-export function nextStep(state: State, tenant: Tenant): NextStep {
+/** Everything waiting on you, most urgent first. The first is the one next step. */
+export function tasks(state: State, tenant: Tenant): Task[] {
   const t = (id: Parameters<typeof term>[1], n?: number) => term(tenant, id, n)
   const manager = person.manager.split(' ')[0]
+  const out: Task[] = []
   if (state.mode === 'leader') {
-    const due = reports.filter(r => r.dueSkills.some(sk => !state.teamRatings[r.id]?.[sk]))
-    if (due.length)
-      return { title: `Rate ${t('skill')} for ${due.length} ${due.length === 1 ? 'person' : 'people'}`, detail: `Due ${DUE_DATE} for your team’s ${t('review', 1)} cycle.`, path: '/team/reviews', cta: 'Start rating' }
+    const waiting = reports.filter(r => r.dueSkills.some(sk => !state.teamRatings[r.id]?.[sk]))
+    if (waiting.length)
+      out.push({ id: 'team', title: `Rate ${t('skill')} for ${waiting.length} ${waiting.length === 1 ? 'person' : 'people'}`, detail: `For your team’s ${t('review', 1)} cycle.`, path: '/team/reviews', cta: 'Start rating', due: dueSoon })
   }
-  // First visit: the client's rollout order decides, so Home, the pill and “Start here” agree.
+  // First visit: the client's rollout order.
   if (state.mode === 'first') {
-    const id = tenant.startHere.find(id => resolveItem(tenant, id) && !startStepDone(state, id))
-    if (id === 'about')
-      return { title: 'Start with what matters to you at work', detail: `A 2-minute exercise in ${label(tenant, 'about', 'About me')}. It shapes every suggestion after it.`, path: '/growth/about', cta: 'Start' }
-    if (id === 'skills')
-      return { title: `Rate your ${t('skill')}`, detail: `${skills.length} ${t('skill')} for ${person.role}. About 8 minutes, and you can stop any time.`, path: '/growth/skills', cta: 'Start rating' }
-    if (id) {
-      const it = resolveItem(tenant, id)!
-      return { title: `Look around ${it.label}`, detail: it.description + '.', path: it.path, cta: `Open ${it.label.toLowerCase()}` }
+    for (const id of tenant.startHere) {
+      const it = resolveItem(tenant, id)
+      if (!it || startStepDone(state, id)) continue
+      if (id === 'about') out.push({ id, title: 'Start with what matters to you at work', detail: 'Two minutes on your values. They shape every suggestion after it.', path: it.path, cta: 'Start' })
+      else if (id === 'skills') out.push({ id, due: dueSoon, title: `Rate your ${t('skill')}`, detail: `${skills.length} ${t('skill')} for ${person.role}. About 8 minutes, and you can stop any time.`, path: it.path, cta: 'Start rating' })
+      else out.push({ id, title: `Look around ${it.label}`, detail: it.description + '.', path: it.path, cta: `Open ${it.label.toLowerCase()}` })
     }
-  }
-  if (!state.assessmentDone && state.mode !== 'first') {
+  } else if (!state.assessmentDone) {
     const n = needsAttention(state).length
-    return { title: `Confirm your ${t('skill')} by ${DUE_DATE}`, detail: `${n} need${n === 1 ? 's' : ''} your attention. The rest carry over from last time.`, path: '/growth/skills', cta: `Review ${n} ${t('skill', n)}` }
+    out.push({ id: 'skills', due: dueSoon, title: `Update your ${t('skill')}`, detail: `${n} must be updated.`, path: '/growth/skills', cta: `Review ${n} ${t('skill', n)}` })
   }
-  const top = state.assessmentDone ? gaps(state)[0] : undefined
-  if (top) {
-    const opts = optionsForSkill(top.skill.id)
-    const acted =
-      state.applications.some(a => opts.gigs.some(g => g.id === a.gigId)) ||
-      state.mentorRequests.some(m => opts.mentors.some(x => x.id === m)) ||
-      state.courses.some(c => opts.courses.some(x => x.id === c))
-    if (!acted)
-      return {
-        title: `Grow ${top.skill.name}`,
-        detail: `Your biggest gap for ${targetRole.title}. ${opts.gigs.length} ${t('gig', opts.gigs.length)}, ${opts.mentors.length} ${t('mentor', opts.mentors.length)} and ${opts.courses.length} ${t('course', opts.courses.length)} can help.`,
-        path: `/growth/targets#gap-${top.skill.id}`,
-        cta: 'See options',
-      }
-  }
+  // Profile lives in the account menu; it's a task only while it's unfinished.
+  const about = resolveItem(tenant, 'about')
+  if (about && !state.aboutDone && !out.some(x => x.id === 'about'))
+    out.push({ id: 'about', title: 'Tell us what matters to you at work', detail: 'Two minutes on your values. They shape every suggestion.', path: about.path, cta: 'Start' })
   const untold = state.applications.find(a => !a.managerTold)
   if (untold)
-    return { title: `Tell ${manager} about your application`, detail: `You said you’d let ${manager} know. ${cap(t('gig', 1))} owners often check with your manager first.`, path: '/growth/plan', cta: `Open your ${label(tenant, 'plan', 'plan').toLowerCase()}` }
-  return { title: 'You’re up to date', detail: `See where else your ${t('skill')} could take you.`, path: '/explore/paths', cta: `Explore ${label(tenant, 'paths', 'paths').toLowerCase()}` }
+    out.push({ id: 'tell', title: `Tell ${manager} about your application`, detail: `You said you’d let ${manager} know. ${cap(t('gig', 1))} owners often check with your manager first.`, path: '/#plan', cta: `Open your ${t('plan', 1)}` })
+  return out
 }
