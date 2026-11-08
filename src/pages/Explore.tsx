@@ -239,6 +239,8 @@ export function CareerPaths() {
   )
 }
 
+const closesIn = (days: number) => (days === 0 ? 'closes today' : days === 1 ? 'closes tomorrow' : `closes in ${days} days`)
+
 export function Vacancies() {
   const { tenant } = useStore()
   const t = useTerm()
@@ -247,7 +249,7 @@ export function Vacancies() {
     <>
       <PageHeader item="vacancies" />
       {vacancies.length === 0 ? <Empty>No open {t('role')} right now.</Empty> : (
-        <ul className="cards">{vacancies.map(v => <li key={v.id}><div className="card"><h2 className="card-title">{v.title}</h2><span className="card-meta">{v.team} · {v.location} · closes {v.closes}</span></div></li>)}</ul>
+        <ul className="cards">{vacancies.map(v => <li key={v.id}><div className="card"><h2 className="card-title">{v.title}</h2><span className="card-meta">{v.team} · {v.location} · {closesIn(v.closesInDays)}</span></div></li>)}</ul>
       )}
     </>
   )

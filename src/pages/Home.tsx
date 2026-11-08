@@ -1,17 +1,15 @@
 import { Link } from 'react-router-dom'
 import { useStore } from '../store'
 import { cap, fill, isLanding, resolveItem, itemsInSpace, spaceLabel, term } from '../ia'
-import { gigs, LAST_VISIT, person, reports, targetRole, TODAY, DUE_DATE } from '../data'
-import { gaps, nextStep, readiness, startStepDone } from '../logic'
+import { gigs, LAST_VISIT, paths, person, reports, skills, targetRole, TODAY, DUE_DATE } from '../data'
+import { gaps, needsAttention, nextStep, readiness, startStepDone } from '../logic'
 import { Card, Icon, Progress } from '../components/ui'
 
 export function Home() {
   const { state, tenant } = useStore()
   const step = nextStep(state, tenant)
-  const r = readiness(state)
   const top = state.mode === 'first' && !state.assessmentDone ? undefined : gaps(state)[0]
   const t = (id: Parameters<typeof term>[1], n?: number) => term(tenant, id, n)
-  const plan = resolveItem(tenant, 'plan')
 
   return (
     <>
@@ -20,6 +18,7 @@ export function Home() {
           <h1 tabIndex={-1}>{state.mode === 'first' ? `Welcome to Fuel50, ${person.first}` : `Welcome back, ${person.first}`}</h1>
           {/* “Last visit” only until she's done something on this one. */}
           <p className="page-sub">{TODAY}{state.mode === 'returner' && !state.assessmentDone && ` · Your last visit was ${LAST_VISIT}`}</p>
+          <p className="meta">{person.role} · {person.location} · Manager: {person.manager}</p>
         </div>
       </div>
 
@@ -51,31 +50,17 @@ export function Home() {
         </Card>
       )}
 
-      {state.mode !== 'first' && (
-        <div className={state.assessmentDone ? 'grid-3' : 'grid-2'}>
-          {/* While the assessment is due, the next step above already says so. */}
-          {state.assessmentDone && (
-            <Card>
-              <h2 className="card-heading">What’s due</h2>
-              <p><strong>Nothing due</strong></p>
-              <p className="muted small">Your {t('skill')} are up to date for {person.manager}.</p>
-            </Card>
-          )}
-          <Card>
+      {state.mode !== 'first' && state.lastAction && (
+        <Card className="left-off" label="Where you left off">
+          <div>
             <h2 className="card-heading">Where you left off</h2>
-            {state.lastAction
-              ? <><p><strong>{fill(state.lastAction.label, tenant)}</strong></p><Link className="more" to={state.lastAction.path}>View <Icon name="arrow" /></Link></>
-              : <p className="muted">Nothing yet.</p>}
-            {state.applications.length > 0 && plan && <p className="small muted">{state.applications.length} application{state.applications.length > 1 ? 's' : ''} under review in your <Link to={plan.path}>{plan.label.toLowerCase()}</Link></p>}
-          </Card>
-          <Card>
-            <h2 className="card-heading">Your target {t('role', 1)}</h2>
-            <p><strong>{targetRole.title}</strong></p>
-            <Progress value={r.pct} />
-            <p className="readiness small"><span>Ready on <strong>{r.ready} of {r.total}</strong> {t('skill')}</span><Link to="/growth/targets">See gaps</Link></p>
-          </Card>
-        </div>
+            <p><strong>{fill(state.lastAction.label, tenant)}</strong></p>
+          </div>
+          <Link className="more" to={state.lastAction.path}>View <Icon name="arrow" /></Link>
+        </Card>
       )}
+
+      <GrowthSummary />
 
       {state.mode !== 'leader' && top && (
         <section aria-labelledby="explore-h">
@@ -101,11 +86,41 @@ export function Home() {
   )
 }
 
+/** Everything that's yours: Home's own items, each with where it stands. Every journey starts here. */
+function GrowthSummary() {
+  const { state, tenant } = useStore()
+  const t = (id: Parameters<typeof term>[1], n?: number) => term(tenant, id, n)
+  const r = readiness(state)
+  const n = needsAttention(state).length
+  const active = state.applications.length + state.mentorRequests.length + state.courses.length + state.goals.length
+  const status: Record<string, string> = {
+    skills: state.assessmentDone ? 'Up to date' : state.mode === 'first' ? `${skills.length} to rate · due ${DUE_DATE}` : `${n} need attention · due ${DUE_DATE}`,
+    targets: `${targetRole.title} · ready on ${r.ready} of ${r.total}`,
+    plan: `${active} active · ${paths.filter(p => p.saved).length} saved career ${t('path', 1)}`,
+    about: state.aboutDone ? state.values.join(', ') : 'Not started · about 2 minutes',
+  }
+  return (
+    <section aria-labelledby="growth-h">
+      <h2 className="section" id="growth-h">Your growth</h2>
+      <div className="grid-2">
+        {itemsInSpace(tenant, 'home').filter(it => !isLanding(it)).map(it => (
+          <Link key={it.id} to={it.path} className="tile">
+            <span className="tile-title">{it.label}</span>
+            <span className="tile-desc">{it.description}</span>
+            {it.id === 'targets' && <Progress value={r.pct} />}
+            <span className="tile-status">{status[it.id]}</span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 /** A short map of the IA, for people who don't know it yet. */
 function Guide() {
   const { state, tenant, dispatch } = useStore()
   if (state.guidanceHidden) return null
-  const list = (sp: 'growth' | 'explore') => itemsInSpace(tenant, sp).filter(i => !isLanding(i)).map(i => i.label).join(', ')
+  const list = (sp: 'home' | 'explore') => itemsInSpace(tenant, sp).filter(i => !isLanding(i)).map(i => i.label).join(', ')
   return (
     <Card className="guide" label="How Fuel50 is organised">
       <div className="row spread">
@@ -113,7 +128,7 @@ function Guide() {
         <button className="link small" onClick={() => dispatch({ type: 'toggleGuidance' })}>Hide this</button>
       </div>
       <div className="grid-3">
-        <div className="guide-col"><h3>{spaceLabel(tenant, 'growth')}</h3><p className="muted small">Everything that’s yours: {list('growth')}.</p></div>
+        <div className="guide-col"><h3>{spaceLabel(tenant, 'home')}</h3><p className="muted small">Everything that’s yours: {list('home')}. Every journey starts here.</p></div>
         <div className="guide-col"><h3>{spaceLabel(tenant, 'explore')}</h3><p className="muted small">What you could do next: {list('explore')}.</p></div>
         <div className="guide-col"><h3>Search</h3><p className="muted small">Press <kbd>⌘K</kbd> or <kbd>/</kbd> anywhere. It knows other names for things.</p></div>
       </div>

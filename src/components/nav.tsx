@@ -5,6 +5,7 @@ import { cap, fill, isLanding, term, itemsInSpace, spaceLabel, visibleSpaces, it
 import { nextStep } from '../logic'
 import { gigById, person } from '../data'
 import { Icon } from './ui'
+import logo from '../assets/fuel50-logo.svg'
 
 /** A link that crosses into another module. It remembers where you came from. */
 export function CrossLink({ to, from, children, className }: { to: string; from: string; children: ReactNode; className?: string }) {
@@ -59,20 +60,12 @@ export function TopNav({ onSearch }: { onSearch: () => void }) {
     <header className="topbar" ref={ref}>
       <a className="skip" href="#main">Skip to content</a>
       <Link className="logo" to="/" onClick={clearOrigin} aria-label={`Fuel50 ${spaceLabel(tenant, 'home')}`}>
-        <span className="logo-mark" aria-hidden>F</span> <span>Fuel50</span>
+        <img src={logo} alt="" width={174} height={60} />
       </Link>
       <nav aria-label="Main">
         <ul className="spaces">
           {visibleSpaces(role).map(sp => {
             const isCurrent = current?.space === sp.id
-            if (sp.id === 'home')
-              return (
-                <li key={sp.id}>
-                  <Link className={'space' + (isCurrent ? ' current' : '')} aria-current={isCurrent ? 'page' : undefined} to="/" onClick={clearOrigin}>
-                    {spaceLabel(tenant, 'home')}
-                  </Link>
-                </li>
-              )
             const items = itemsInSpace(tenant, sp.id)
             if (items.length === 0) return null
             const expanded = open === sp.id
@@ -125,7 +118,7 @@ export function TopNav({ onSearch }: { onSearch: () => void }) {
 
 function AvatarMenu({ open, setOpen, onNavigate }: { open: boolean; setOpen: (o: boolean) => void; onNavigate: () => void }) {
   const { tenant } = useStore()
-  const overview = resolveItem(tenant, 'growth-overview')
+  const profile = resolveItem(tenant, 'about')
   return (
     <div className="avatar-wrap">
       <button className="avatar" aria-expanded={open} aria-controls="menu-avatar" onClick={() => setOpen(!open)} aria-label="Your account">
@@ -135,8 +128,10 @@ function AvatarMenu({ open, setOpen, onNavigate }: { open: boolean; setOpen: (o:
         <div className="menu avatar-menu" id="menu-avatar">
           <p className="menu-blurb"><strong>{person.name}</strong><br />{person.role}</p>
           <ul className="plain-menu">
-            {overview && <li><Link className="menu-item" to={overview.path} onClick={onNavigate}><span className="menu-label">Your {overview.label.toLowerCase()}</span><span className="menu-desc">{spaceLabel(tenant, 'growth')} › {overview.label}</span></Link></li>}
-            <li><Link className="menu-item" to="/admin" onClick={onNavigate}><span className="menu-label">Switch to {spaceLabel(tenant, 'admin')}</span><span className="menu-desc">For admins. Same shell, keeps your place.</span></Link></li>
+            {profile && <li><Link className="menu-item" to={profile.path} onClick={onNavigate}><span className="menu-label">Your profile</span></Link></li>}
+            <li role="separator" className="menu-sep" />
+            {/* Only admins see this in the product; the prototype shows it so the Admin space can be reached. */}
+            <li><Link className="menu-item" to="/admin" onClick={onNavigate}><span className="menu-label">Open {spaceLabel(tenant, 'admin')}</span><span className="menu-desc">Set up skills, roles and reports for your organisation</span></Link></li>
           </ul>
         </div>
       )}
@@ -153,7 +148,8 @@ export function Breadcrumbs() {
   const resolved = resolveItem(tenant, item.id as ItemId)
   const space = SPACES.find(s => s.id === item.space)!
   // Every space has its own page, so the space crumb is always a link; on that page it is the last crumb.
-  const crumbs: { label: string; path?: string }[] = [{ label: spaceLabel(tenant, space.id), path: space.path }]
+  // Home's items need no space crumb: the first crumb is already Home.
+  const crumbs: { label: string; path?: string }[] = space.id === 'home' ? [] : [{ label: spaceLabel(tenant, space.id), path: space.path }]
   if (!isLanding(item)) crumbs.push({ label: resolved?.label ?? cap(fill(item.label, tenant)), path: item.path })
   const gigMatch = loc.pathname.match(/^\/explore\/gigs\/(.+)$/)
   if (gigMatch) crumbs.push({ label: gigById(gigMatch[1])?.title ?? cap(term(tenant, 'gig', 1)) })

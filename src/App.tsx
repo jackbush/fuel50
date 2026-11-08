@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { TopNav, Breadcrumbs, ReturnBanner, Toasts } from './components/nav'
 import { SearchPalette } from './components/Search'
 import { ProtoPanel } from './components/ProtoPanel'
 import { Start } from './pages/Start'
 import { Home } from './pages/Home'
-import { GrowthOverview, Skills, TargetRoles, Plan, AboutMe } from './pages/Growth'
+import { Skills, TargetRoles, Plan, AboutMe } from './pages/Growth'
 import { ExploreOverview, Gigs, GigDetail, Mentors, Learning, Vacancies, CareerPaths } from './pages/Explore'
 import { Team, Reviews, Mentees } from './pages/Team'
 import { Admin, NotFound } from './pages/Misc'
@@ -44,7 +44,8 @@ export default function App() {
       <main id="main">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/growth" element={<GrowthOverview />} />
+          {/* The old My growth page is Home now; keep old links working. */}
+          <Route path="/growth" element={<Navigate to="/" replace />} />
           <Route path="/growth/skills" element={<Skills />} />
           <Route path="/growth/targets" element={<TargetRoles />} />
           <Route path="/growth/plan" element={<Plan />} />

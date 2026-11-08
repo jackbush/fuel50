@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { ITEMS, cap, fill, isLanding, itemsInSpace, resolveItem, spaceLabel, term, visibleSpaces, type ItemId } from '../ia'
+import { ADMIN_TOOLS, ITEMS, SPACES, cap, fill, isLanding, itemsInSpace, resolveItem, spaceLabel, term, visibleSpaces, type ItemId } from '../ia'
 import { Icon } from './ui'
 import { courses, gigs, mentors, paths, skills, targetRole, vacancies } from '../data'
 
@@ -39,7 +39,9 @@ export function useSearchIndex() {
         const it = resolveItem(tenant, def.id as ItemId)
         if (!it) continue // hidden by this client: not findable
         const landing = isLanding(def)
-        const names = [it.label, it.canonicalLabel, fill(def.label, tenant), ...(landing ? [spaceLabel(tenant, def.space)] : []), ...it.synonyms]
+        // A space's own page is also found by the space's name.
+        const spaceNames = SPACES.filter(sp => sp.path === def.path).map(sp => spaceLabel(tenant, sp.id))
+        const names = [it.label, it.canonicalLabel, fill(def.label, tenant), ...spaceNames, ...it.synonyms]
         let best = 0, via: string | undefined
         // Out of the menu's context, “Overview” means nothing: a space's own page is found under the space's name.
         const title = landing ? spaceLabel(tenant, def.space) : it.label
@@ -83,6 +85,15 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
   const suggestions = ['target roles', 'talents', 'coach', 'self assessment', 'business development']
   const placeholder = `Search pages, ${term(tenant, 'gig')}, ${term(tenant, 'mentor')}, ${term(tenant, 'skill')}…`
   const mentorsLabel = resolveItem(tenant, 'mentors')?.label
+  // Things that exist but aren't yours to open: say why, instead of “nothing found”.
+  const nq = norm(q.trim())
+  const explanations = !nq ? [] : [
+    ...tenant.hidden.map(id => ITEMS.find(i => i.id === id)!)
+      .filter(def => [fill(def.label, tenant), ...def.synonyms].some(n => norm(n).startsWith(nq)))
+      .map(def => `“${fill(def.label, tenant)}” isn’t used at your organisation.`),
+    ...ADMIN_TOOLS.filter(t => norm(t.name).startsWith(nq))
+      .map(t => `“${t.name}” is an admin tool, so it isn’t in your menus. Your Fuel50 admin can help.`),
+  ]
   let lastGroup = ''
 
   return (
@@ -114,7 +125,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
             <div className="chips">{suggestions.map(s => <button key={s} className="chip-btn" onClick={() => { setQ(s); input.current?.focus() }}>{s}</button>)}</div>
           </div>
         )}
-        {q.trim() && results.length === 0 && (
+        {q.trim() && results.length === 0 && !explanations.length && (
           <div className="palette-empty">
             <p>Nothing found for “{q}”. Try a shorter word, or go to:</p>
             <div className="chips">
@@ -124,9 +135,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
             </div>
           </div>
         )}
-        {q.trim() && tenant.hidden.map(id => ITEMS.find(i => i.id === id)!).filter(def => [fill(def.label, tenant), ...def.synonyms].some(n => norm(n).startsWith(norm(q.trim())))).map(def => (
-          <p key={def.id} className="palette-empty muted small">“{fill(def.label, tenant)}” isn’t used at your organisation.</p>
-        ))}
+        {explanations.map(text => <p key={text} className="palette-empty muted small">{text}</p>)}
         <ul id="search-results" role="listbox" className="results">
           {results.map((r, idx) => {
             const header = r.group !== lastGroup ? r.group : null

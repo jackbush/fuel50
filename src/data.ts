@@ -105,11 +105,11 @@ export const courses: Course[] = [
   { id: 'brand-basics', title: 'Brand marketing for non-marketers', provider: 'LinkedIn Learning', hours: 2, skills: ['brand-marketing'] },
 ]
 
-export interface Vacancy { id: string; title: string; team: string; location: string; closes: string }
+export interface Vacancy { id: string; title: string; team: string; location: string; closesInDays: number }
 export const vacancies: Vacancy[] = [
-  { id: 'v1', title: 'Senior Manager, Product Sales', team: 'Sales', location: 'Auckland', closes: '4 July' },
-  { id: 'v2', title: 'Partnerships Manager', team: 'Business Development', location: 'Wellington', closes: '27 June' },
-  { id: 'v3', title: 'Sales Operations Analyst', team: 'Sales Operations', location: 'Remote', closes: '10 July' },
+  { id: 'v1', title: 'Senior Manager, Product Sales', team: 'Sales', location: 'Auckland', closesInDays: 18 },
+  { id: 'v2', title: 'Partnerships Manager', team: 'Business Development', location: 'Wellington', closesInDays: 11 },
+  { id: 'v3', title: 'Sales Operations Analyst', team: 'Sales Operations', location: 'Remote', closesInDays: 24 },
 ]
 
 export interface CareerPath { id: string; title: string; steps: string[]; saved: boolean }

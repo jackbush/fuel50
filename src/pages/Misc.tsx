@@ -1,11 +1,23 @@
 import { Link } from 'react-router-dom'
-import { Card, PageHeader } from '../components/ui'
+import { ADMIN_TOOLS } from '../ia'
+import { PageHeader } from '../components/ui'
 
 export function Admin() {
   return (
     <>
-      <PageHeader item="admin" sub="A separate space for configuration and reporting. Out of scope for this prototype." />
-      <Card><p>In the proposed IA, admin tools (Skills Studio, Talent Blueprint, Role Editor, reports) live here, not in employees’ menus. Switching in and out keeps your place.</p><Link to="/">Back to Home</Link></Card>
+      <PageHeader item="admin" sub="Where your organisation sets up Fuel50. Only admins can open it, and leaving it takes you back to where you were." />
+      <section aria-labelledby="moved-h">
+        <h2 id="moved-h" className="section-first">Moved out of the employee experience</h2>
+        <p className="page-sub">These used to sit alongside employees’ own tools. In the proposed IA they live only here, so employees’ menus hold only what’s theirs.</p>
+        <ul className="moved-list">
+          {ADMIN_TOOLS.map(t => (
+            <li key={t.name}>
+              <strong>{t.name}</strong><span className="meta">{t.does}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <p className="meta admin-note">The admin tools themselves are out of scope for this prototype.</p>
     </>
   )
 }

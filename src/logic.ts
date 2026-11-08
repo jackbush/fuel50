@@ -11,13 +11,14 @@ export function needsAttention(state: State): Skill[] {
   return skills.filter(s => s.change || state.ratings[s.id] === null)
 }
 
-export interface Gap { skill: Skill; current: Level; target: Level; size: number }
+/** `rated` is false when there's no rating yet: the gap is shown, but its size is a guess. */
+export interface Gap { skill: Skill; current: Level; target: Level; size: number; rated: boolean }
 
 export function gaps(state: State): Gap[] {
   return skills
     .map(s => {
       const current = (state.ratings[s.id] ?? 0) as Level
-      return { skill: s, current, target: s.target, size: s.target - current }
+      return { skill: s, current, target: s.target, size: s.target - current, rated: state.ratings[s.id] !== null }
     })
     .filter(g => g.size > 0)
     .sort((a, b) => b.size - a.size || a.skill.name.localeCompare(b.skill.name))
@@ -35,6 +36,37 @@ export function optionsForSkill(skillId: string) {
     mentors: mentors.filter(m => m.skills.includes(skillId)),
     courses: courses.filter(c => c.skills.includes(skillId)),
   }
+}
+
+export type ActionKind = 'gig' | 'mentor' | 'course'
+export interface Action { kind: ActionKind; id: string; title: string; path: string; skills: string[]; reach: number; spans: number }
+
+/**
+ * How much of your gaps an action works on: the levels between your rating and the
+ * target, summed over the gap skills it grows. Not a promise of levels gained, which
+ * nothing in the data can tell us. Unrated skills count 0 until they're rated.
+ */
+export function actionsFor(state: State, skillId: string): Action[] {
+  const known = gaps(state).filter(g => g.rated)
+  const score = (ids: string[]) => {
+    const hit = known.filter(g => ids.includes(g.skill.id))
+    return { reach: hit.reduce((n, g) => n + g.size, 0), spans: hit.length }
+  }
+  const o = optionsForSkill(skillId)
+  return [
+    ...o.gigs.map(g => ({ kind: 'gig' as const, id: g.id, title: g.title, path: `/explore/gigs/${g.id}`, skills: g.grow, ...score(g.grow) })),
+    ...o.mentors.map(m => ({ kind: 'mentor' as const, id: m.id, title: m.name, path: '/explore/mentors', skills: m.skills, ...score(m.skills) })),
+    ...o.courses.map(c => ({ kind: 'course' as const, id: c.id, title: c.title, path: '/explore/learning', skills: c.skills, ...score(c.skills) })),
+  ]
+}
+
+/** The single strongest action across all gaps: most reach, then most gaps at once, then the biggest gap first. */
+export function bestAction(state: State): { action: Action; skillId: string } | undefined {
+  let best: { action: Action; skillId: string } | undefined
+  for (const g of gaps(state))
+    for (const a of actionsFor(state, g.skill.id))
+      if (a.reach > 0 && (!best || a.reach > best.action.reach || (a.reach === best.action.reach && a.spans > best.action.spans))) best = { action: a, skillId: g.skill.id }
+  return best
 }
 
 export interface NextStep { title: string; detail: string; path: string; cta: string }

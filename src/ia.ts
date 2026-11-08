@@ -14,12 +14,12 @@
 
 import contentJson from './content.json'
 
-export type SpaceId = 'home' | 'growth' | 'explore' | 'team' | 'admin'
+export type SpaceId = 'home' | 'explore' | 'team' | 'admin'
 export type Audience = 'everyone' | 'leader' | 'admin'
 
 export type ItemId =
   | 'home'
-  | 'growth-overview' | 'skills' | 'targets' | 'plan' | 'about'
+  | 'skills' | 'targets' | 'plan' | 'about'
   | 'explore-overview' | 'paths' | 'gigs' | 'mentors' | 'learning' | 'vacancies'
   | 'team' | 'reviews' | 'mentees'
   | 'admin'
@@ -50,21 +50,27 @@ export interface SpaceDef {
 }
 
 export const SPACES: SpaceDef[] = [
-  { id: 'home', blurb: 'Where you left off and what’s next', audience: 'everyone', path: '/' },
-  { id: 'growth', blurb: 'Everything that’s yours', audience: 'everyone', path: '/growth' },
+  { id: 'home', blurb: 'Everything that’s yours, and what’s next', audience: 'everyone', path: '/' },
   { id: 'explore', blurb: 'What you could do next', audience: 'everyone', path: '/explore' },
   { id: 'team', blurb: 'People you look after', audience: 'leader', path: '/team' },
   { id: 'admin', blurb: 'Configuration and reporting', audience: 'admin', path: '/admin' },
 ]
 
-export const ITEMS: ItemDef[] = [
-  { id: 'home', space: 'home', label: '{space.home}', path: '/', description: 'Your summary, what’s due and one next step', synonyms: ['dashboard', 'start'] },
+/** Tools taken out of employees’ menus and moved to Admin. The Admin page lists them; search finds Admin by their names. */
+export const ADMIN_TOOLS = [
+  { name: 'Skills Studio', does: 'Build and maintain your organisation’s skills library' },
+  { name: 'Talent Blueprint', does: 'Define roles and the skills each one needs' },
+  { name: 'Role Editor', does: 'Edit individual role profiles' },
+  { name: 'Reports and analytics', does: 'Skills, engagement and mobility insight across the organisation' },
+]
 
-  { id: 'growth-overview', space: 'growth', label: 'Profile', path: '/growth', description: 'You, your {role.one} and a summary of everything that’s yours', synonyms: ['profile', 'my profile', 'overview'] },
-  { id: 'skills', space: 'growth', label: '{skill.many}', path: '/growth/skills', description: 'Rate your {skill.many} and ask for feedback', synonyms: ['talents', 'top skills', 'competencies', 'capabilities', 'assessment', 'self-assessment', 'rate my skills', 'feedback'] },
-  { id: 'targets', space: 'growth', label: 'Target {role.many}', path: '/growth/targets', description: '{role.many} you’re aiming for and how close you are', synonyms: ['target roles', 'aspirations', 'next role', 'career goals'] },
-  { id: 'plan', space: 'growth', label: '{plan.one}', path: '/growth/plan', description: 'Saved {path.many}, applications, {mentor.many}, learning and goals', synonyms: ['my plan', 'development plan', 'my stuff', 'applications', 'saved', 'idp', 'goals'] },
-  { id: 'about', space: 'growth', label: 'About me', path: '/growth/about', description: 'Your values, strengths and work style', synonyms: ['personalize', 'personalise', 'reflect', 'values', 'fuelvalues', 'career engagers', 'work style', 'fuelfit', 'agility'] },
+export const ITEMS: ItemDef[] = [
+  { id: 'home', space: 'home', label: 'Overview', path: '/', description: 'Your summary, what’s due and one next step', synonyms: ['dashboard', 'start', 'my growth'] },
+
+  { id: 'skills', space: 'home', label: '{skill.many}', path: '/growth/skills', description: 'Rate your {skill.many} and ask for feedback', synonyms: ['talents', 'top skills', 'competencies', 'capabilities', 'assessment', 'self-assessment', 'rate my skills', 'feedback'] },
+  { id: 'targets', space: 'home', label: 'Target {role.many}', path: '/growth/targets', description: '{role.many} you’re aiming for and how close you are', synonyms: ['target roles', 'aspirations', 'next role', 'career goals'] },
+  { id: 'plan', space: 'home', label: '{plan.one}', path: '/growth/plan', description: 'Saved {path.many}, applications, {mentor.many}, learning and goals', synonyms: ['my plan', 'development plan', 'my stuff', 'applications', 'saved', 'idp', 'goals'] },
+  { id: 'about', space: 'home', label: 'About me', path: '/growth/about', description: 'Your values, strengths and work style', synonyms: ['profile', 'my profile', 'personalize', 'personalise', 'reflect', 'values', 'fuelvalues', 'career engagers', 'work style', 'fuelfit', 'agility'] },
 
   { id: 'explore-overview', space: 'explore', label: 'Overview', path: '/explore', description: 'Everything you could do next, matched to your {skill.many}', synonyms: ['opportunities', 'explore', 'browse'] },
   { id: 'paths', space: 'explore', label: 'Career {path.many}', path: '/explore/paths', description: 'Where your {skill.many} could take you', synonyms: ['journeys', 'career journeys', 'moves', 'roles'] },
@@ -77,7 +83,7 @@ export const ITEMS: ItemDef[] = [
   { id: 'reviews', space: 'team', label: '{skill.one} ratings', path: '/team/reviews', description: 'Rate your reports’ {skill.many} for the {review.one} cycle', synonyms: ['reviews', 'reviews and ratings', 'rate team', 'performance', 'evaluations', 'fuelfactors'] },
   { id: 'mentees', space: 'team', label: '{mentee.many}', path: '/team/mentees', description: 'People you mentor', synonyms: ['my mentees'] },
 
-  { id: 'admin', space: 'admin', label: 'Admin', path: '/admin', description: 'Skills Studio, blueprint, reports and configuration', synonyms: ['skills studio', 'talent blueprint', 'reports', 'analytics', 'insights'] },
+  { id: 'admin', space: 'admin', label: 'Admin', path: '/admin', description: 'Skills Studio, Talent Blueprint, Role Editor and reports', synonyms: ['configuration', 'settings', 'reports', 'analytics', 'insights', ...ADMIN_TOOLS.map(t => t.name.toLowerCase())] },
 ]
 
 /** A client's configuration of the fixed structure. */
@@ -112,7 +118,7 @@ export const TENANTS: TenantConfig[] = [
     id: 'northbank',
     name: 'Northbank (renamed)',
     note: 'A bank that renames items, hides Vacancies and reorders Explore',
-    spaceLabels: { growth: 'My development', explore: 'Opportunities' },
+    spaceLabels: { explore: 'Opportunities' },
     terms: { skill: ['talent', 'talents'], mentor: ['coach', 'coaches'], path: ['journey', 'journeys'], plan: ['development plan', 'development plans'] },
     itemLabels: { mentors: 'Coach', paths: 'Journeys', plan: 'Development plan', about: 'Personalize', learning: 'Learn+' },
     hidden: ['vacancies'],

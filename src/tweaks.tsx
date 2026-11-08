@@ -21,7 +21,8 @@ const KEY = 'fuel50-tweaks-v1'
 /** Drop draft entries that now match the saved files (after `npm run tweak`, or a manual edit). */
 function prune(c: Changes): Changes {
   const design = diff(BASE_DESIGN, merge(BASE_DESIGN, c.design ?? {}))
-  const spaces = Object.fromEntries(Object.entries(c.content?.spaces ?? {}).filter(([k, v]) => v && CONTENT.spaces[k as SpaceId] !== v))
+  // Keys the vocabulary no longer has (a removed space) are dropped too.
+  const spaces = Object.fromEntries(Object.entries(c.content?.spaces ?? {}).filter(([k, v]) => k in CONTENT.spaces && v && CONTENT.spaces[k as SpaceId] !== v))
   const terms = Object.fromEntries(Object.entries(c.content?.terms ?? {}).filter(([k, v]) => {
     const base = CONTENT.terms[k as TermId]
     return base && v && (v[0] !== base[0] || v[1] !== base[1])

@@ -46,6 +46,27 @@ export function Progress({ value }: { value: number }) {
   )
 }
 
+/** The rating scale's names, short enough to sit under a segment. */
+export const SCALE_LABELS = LEVELS.map((l, i) => (i === 0 ? 'Not relevant' : l))
+
+/**
+ * One skill on the shared rating scale: a staircase of five segments from “Not relevant”
+ * up to “Expert”, coloured for what you have, what's left to reach the target, and beyond.
+ */
+export function LevelScale({ current, target, rated }: { current: Level; target: Level; rated: boolean }) {
+  const state = (i: number) =>
+    i === 0 ? 'base' : rated && i <= current ? 'have' : i <= target ? (rated ? 'gap' : 'unknown') : 'beyond'
+  const now = rated ? LEVELS[current] : 'Not rated yet'
+  return (
+    <div className="scale" role="img" aria-label={`${now}. Needs ${LEVELS[target]}.`}>
+      <div className="scale-track" aria-hidden>
+        {SCALE_LABELS.map((l, i) => <span key={l} className={'seg seg-' + state(i) + (i === target ? ' is-target' : '')} style={{ '--step': i } as React.CSSProperties} title={l} />)}
+      </div>
+      <p className="scale-caption" aria-hidden><span>{rated ? <>Now <strong>{now}</strong></> : now}</span><span>Needs <strong>{LEVELS[target]}</strong></span></p>
+    </div>
+  )
+}
+
 export function Card({ children, className, id, label }: { children: ReactNode; className?: string; id?: string; label?: string }) {
   return <section id={id} aria-label={label} className={'card' + (className ? ' ' + className : '')}>{children}</section>
 }

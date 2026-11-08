@@ -1,44 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../store'
-import { cap, isLanding, resolveItem, itemsInSpace, term, withArticle, type TermId } from '../ia'
+import { cap, resolveItem, term, withArticle, type TermId } from '../ia'
 import { courses, gigs, LAST_VISIT, LEVELS, LEVEL_HELP, mentors, paths, person, skills, targetRole, DUE_DATE, type Level, type Skill } from '../data'
-import { gaps, needsAttention, optionsForSkill, readiness } from '../logic'
-import { Card, Empty, Icon, LevelTag, PageHeader, Progress } from '../components/ui'
+import { actionsFor, bestAction, gaps, needsAttention, optionsForSkill, readiness } from '../logic'
+import { Card, Empty, Icon, LevelScale, LevelTag, PageHeader, Progress, SCALE_LABELS } from '../components/ui'
 import { CrossLink } from '../components/nav'
 
 const useTerm = () => {
   const { tenant } = useStore()
   return (id: TermId, n?: number) => term(tenant, id, n)
-}
-
-/* ---------------- Overview ---------------- */
-
-export function GrowthOverview() {
-  const { state, tenant } = useStore()
-  const t = useTerm()
-  const r = readiness(state)
-  const active = state.applications.length + state.mentorRequests.length + state.courses.length + state.goals.length
-  const status: Record<string, string> = {
-    skills: state.assessmentDone ? 'Up to date' : `${needsAttention(state).length} need attention · due ${DUE_DATE}`,
-    targets: `${targetRole.title} · ready on ${r.ready} of ${r.total}`,
-    plan: `${active} active · 1 saved career ${t('path', 1)}`,
-    about: state.aboutDone ? 'Values, strengths, work style' : 'Not started',
-  }
-  return (
-    <>
-      <PageHeader title={person.name} sub={`${person.role} · ${person.location} · Manager: ${person.manager}`} />
-      <div className="grid-2">
-        {itemsInSpace(tenant, 'growth').filter(i => !isLanding(i)).map(it => (
-          <Link key={it.id} to={it.path} className="tile">
-            <span className="tile-title">{it.label}</span>
-            <span className="tile-desc">{it.description}</span>
-            <span className="tile-status">{status[it.id]}</span>
-          </Link>
-        ))}
-      </div>
-    </>
-  )
 }
 
 /* ---------------- Skills: confirm or change ---------------- */
@@ -225,7 +196,8 @@ export function TargetRoles() {
   const g = gaps(state)
   const saved = paths.find(p => p.saved)!
   const from = `your target ${t('role', 1)}`
-  const pathsItem = resolveItem(tenant, 'paths'), mentorsItem = resolveItem(tenant, 'mentors'), learningItem = resolveItem(tenant, 'learning')
+  const pathsItem = resolveItem(tenant, 'paths')
+  const best = bestAction(state)
   return (
     <>
       <PageHeader item="targets" />
@@ -235,22 +207,36 @@ export function TargetRoles() {
         <Progress value={r.pct} />
         <p className="readiness"><span>Ready on <strong>{r.ready} of {r.total}</strong> {t('skill')}{!state.assessmentDone && ' (based on your last ratings)'}</span></p>
       </Card>
-      <h2 className="section">Gaps, biggest first</h2>
+      <div className="section-head gaps-head">
+        <div>
+          <h2>Gaps, biggest first</h2>
+          <p className="meta">Each {t('skill', 1)} on the same scale. <span className="key-item"><span className="key key-have" />you have</span> <span className="key-item"><span className="key key-gap" />to close</span> <span className="key-item"><span className="key key-unknown" />not rated yet</span></p>
+        </div>
+        <ol className="scale-axis" aria-hidden>{SCALE_LABELS.map(l => <li key={l}>{l}</li>)}</ol>
+      </div>
       {g.length === 0 && <Empty>No gaps. You’re ready for this {t('role', 1)} on every {t('skill', 1)}.</Empty>}
+      {g.length > 0 && <p className="meta reach-key"><span className="reach">+2</span> how many levels of your gaps an option works on. Options that work on two or more are highlighted; the strongest on this page is filled.</p>}
       {g.map(gap => {
-        const o = optionsForSkill(gap.skill.id)
+        const actions = actionsFor(state, gap.skill.id)
         return (
           <Card key={gap.skill.id} id={`gap-${gap.skill.id}`} className="gap">
-            <div className="gap-head">
+            <div className="gap-main">
               <h3>{gap.skill.name}</h3>
-              <span className="meta">{LEVELS[gap.current]} → {LEVELS[gap.target]}</span>
+              <div className="gap-opts">
+                {actions.map(a => {
+                  const isBest = best?.skillId === gap.skill.id && best.action.kind === a.kind && best.action.id === a.id
+                  return (
+                    <CrossLink key={a.kind + a.id} to={a.path} from={from} className={'opt' + (isBest ? ' is-best' : a.reach >= 2 ? ' is-strong' : '')}>
+                      <span className="opt-kind">{cap(t(a.kind, 1))}</span>{a.title}
+                      {a.reach > 0 && <span className="reach" title={`Works on ${a.reach} level${a.reach === 1 ? '' : 's'} of your gaps`}>+{a.reach}<span className="visually-hidden"> levels of your gaps</span></span>}
+                      {isBest && <span className="visually-hidden"> (strongest option on this page)</span>}
+                    </CrossLink>
+                  )
+                })}
+                {!actions.length && <span className="muted">No matches yet.</span>}
+              </div>
             </div>
-            <div className="gap-opts">
-              {o.gigs.map(x => <CrossLink key={x.id} to={`/explore/gigs/${x.id}`} from={from} className="opt"><span className="opt-kind">{cap(t('gig', 1))}</span>{x.title}</CrossLink>)}
-              {mentorsItem && o.mentors.map(x => <CrossLink key={x.id} to={mentorsItem.path} from={from} className="opt"><span className="opt-kind">{cap(t('mentor', 1))}</span>{x.name}</CrossLink>)}
-              {learningItem && o.courses.map(x => <CrossLink key={x.id} to={learningItem.path} from={from} className="opt"><span className="opt-kind">{cap(t('course', 1))}</span>{x.title}</CrossLink>)}
-              {!o.gigs.length && !o.mentors.length && !o.courses.length && <span className="muted">No matches yet.</span>}
-            </div>
+            <LevelScale current={gap.current} target={gap.target} rated={gap.rated} />
           </Card>
         )
       })}
