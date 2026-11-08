@@ -1,20 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { ITEMS, resolveItem, spaceLabel, visibleSpaces, type ItemId } from '../ia'
+import { ITEMS, cap, fill, isLanding, itemsInSpace, resolveItem, spaceLabel, term, visibleSpaces, type ItemId } from '../ia'
+import { Icon } from './ui'
 import { courses, gigs, mentors, paths, skills, targetRole, vacancies } from '../data'
 
 interface Result { group: string; title: string; sub: string; path: string; via?: string; score: number }
 
-const norm = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^\w\s+]/g, '')
+// Hyphens count as spaces, so “self assessment” finds “self-assessment”.
+const norm = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[-‐–—_/]/g, ' ').replace(/[^\w\s+]/g, '').replace(/\s+/g, ' ')
 
 function scoreText(q: string, text: string): number {
   const t = norm(text)
   if (!q) return 0
   if (t === q) return 100
   if (t.startsWith(q)) return 80
-  if (t.split(/\s+/).some(w => w.startsWith(q))) return 60
-  if (t.includes(q)) return 40
+  if (t.split(' ').some(w => w.startsWith(q))) return 60
+  // Phrases that start mid-text (“assessment due”), but not letters inside a word (“rate” in “strategy”).
+  if (t.includes(' ' + q)) return 40
   return 0
 }
 
@@ -27,6 +30,7 @@ export function useSearchIndex() {
   const { tenant, role, state } = useStore()
   return useMemo(() => {
     const spaces = visibleSpaces(role).map(s => s.id)
+    const t = (id: Parameters<typeof term>[1], n?: number) => term(tenant, id, n)
     return (raw: string): Result[] => {
       const q = norm(raw.trim())
       const out: Result[] = []
@@ -34,26 +38,29 @@ export function useSearchIndex() {
         if (!spaces.includes(def.space)) continue
         const it = resolveItem(tenant, def.id as ItemId)
         if (!it) continue // hidden by this client: not findable
-        const names = [it.label, it.canonicalLabel, ...it.synonyms]
+        const landing = isLanding(def)
+        const names = [it.label, it.canonicalLabel, fill(def.label, tenant), ...(landing ? [spaceLabel(tenant, def.space)] : []), ...it.synonyms]
         let best = 0, via: string | undefined
-        names.forEach((n, i) => { const sc = scoreText(q, n) - (i > 0 ? 5 : 0); if (sc > best) { best = sc; via = i > 0 && n.toLowerCase() !== it.label.toLowerCase() ? n : undefined } })
+        // Out of the menu's context, “Overview” means nothing: a space's own page is found under the space's name.
+        const title = landing ? spaceLabel(tenant, def.space) : it.label
+        names.forEach((n, i) => { const sc = scoreText(q, n) - (i > 0 ? 5 : 0); if (sc > best) { best = sc; via = i > 0 && n.toLowerCase() !== title.toLowerCase() ? n : undefined } })
         best = Math.max(best, scoreText(q, it.description) / 2)
-        if (best > 0) out.push({ group: 'Pages', title: it.label, sub: `${spaceLabel(tenant, def.space)} · ${it.description}`, path: it.path, via, score: best + 10 })
+        if (best > 0) out.push({ group: 'Pages', title, sub: `${landing ? it.label : spaceLabel(tenant, def.space)} · ${it.description}`, path: it.path, via, score: best + 10 })
       }
       const mine: Result[] = [
-        { group: 'Your stuff', title: targetRole.title, sub: 'Your target role', path: '/growth/targets', score: 0 },
-        ...paths.filter(p => p.saved).map(p => ({ group: 'Your stuff', title: p.title, sub: 'Saved career path', path: '/explore/paths', score: 0 })),
-        ...state.applications.map(a => ({ group: 'Your stuff', title: gigs.find(g => g.id === a.gigId)!.title, sub: `Gig application · ${a.status}`, path: `/explore/gigs/${a.gigId}`, score: 0 })),
+        { group: 'Your stuff', title: targetRole.title, sub: `Your target ${t('role', 1)}`, path: '/growth/targets', score: 0 },
+        ...paths.filter(p => p.saved).map(p => ({ group: 'Your stuff', title: p.title, sub: `Saved career ${t('path', 1)}`, path: '/explore/paths', score: 0 })),
+        ...state.applications.map(a => ({ group: 'Your stuff', title: gigs.find(g => g.id === a.gigId)!.title, sub: `${cap(t('gig', 1))} application · ${a.status}`, path: `/explore/gigs/${a.gigId}`, score: 0 })),
       ]
       mine.forEach(m => { const sc = Math.max(scoreText(q, m.title), scoreText(q, m.sub)); if (sc) out.push({ ...m, score: sc + 5 }) })
       const opp: Result[] = [
-        ...gigs.map(g => ({ group: 'Opportunities', title: g.title, sub: `Gig · ${g.team} · ${g.weeks} weeks`, path: `/explore/gigs/${g.id}`, score: 0 })),
-        ...mentors.map(m => ({ group: 'Opportunities', title: m.name, sub: `Mentor · ${m.role}`, path: '/explore/mentors', score: 0 })),
-        ...courses.map(c => ({ group: 'Opportunities', title: c.title, sub: `Course · ${c.provider}`, path: '/explore/learning', score: 0 })),
-        ...(resolveItem(tenant, 'vacancies') ? vacancies.map(v => ({ group: 'Opportunities', title: v.title, sub: `Vacancy · ${v.location}`, path: '/explore/vacancies', score: 0 })) : []),
+        ...gigs.map(g => ({ group: 'Opportunities', title: g.title, sub: `${cap(t('gig', 1))} · ${g.team} · ${g.weeks} weeks`, path: `/explore/gigs/${g.id}`, score: 0 })),
+        ...mentors.map(m => ({ group: 'Opportunities', title: m.name, sub: `${cap(t('mentor', 1))} · ${m.role}`, path: '/explore/mentors', score: 0 })),
+        ...courses.map(c => ({ group: 'Opportunities', title: c.title, sub: `${cap(t('course', 1))} · ${c.provider}`, path: '/explore/learning', score: 0 })),
+        ...(resolveItem(tenant, 'vacancies') ? vacancies.map(v => ({ group: 'Opportunities', title: v.title, sub: `${cap(t('vacancy', 1))} · ${v.location}`, path: '/explore/vacancies', score: 0 })) : []),
       ]
       opp.forEach(o => { const sc = Math.max(scoreText(q, o.title), scoreText(q, o.sub) / 2); if (sc) out.push({ ...o, score: sc }) })
-      skills.forEach(s => { const sc = scoreText(q, s.name); if (sc) out.push({ group: 'Skills', title: s.name, sub: 'Your rating and what it’s needed for', path: `/growth/skills#skill-${s.id}`, score: sc }) })
+      skills.forEach(s => { const sc = scoreText(q, s.name); if (sc) out.push({ group: cap(t('skill')), title: s.name, sub: 'Your rating and what it’s needed for', path: `/growth/skills#skill-${s.id}`, score: sc }) })
       return out.sort((a, b) => b.score - a.score).slice(0, 12)
     }
   }, [tenant, role, state.applications])
@@ -65,23 +72,28 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
   const input = useRef<HTMLInputElement>(null)
   const search = useSearchIndex()
   const nav = useNavigate()
-  const { tenant, dispatch } = useStore()
+  const { tenant, role, dispatch } = useStore()
   const results = q.trim() ? search(q) : []
 
   useEffect(() => { if (open) { setQ(''); setI(0); setTimeout(() => input.current?.focus(), 0) } }, [open])
   if (!open) return null
 
   const go = (r: Result) => { dispatch({ type: 'setOrigin', origin: null }); onClose(); nav(r.path) }
-  const suggestions = ['target roles', 'talents', 'coach', 'gigs', 'business development']
+  // Other clients' words, to show that search understands them.
+  const suggestions = ['target roles', 'talents', 'coach', 'self assessment', 'business development']
+  const placeholder = `Search pages, ${term(tenant, 'gig')}, ${term(tenant, 'mentor')}, ${term(tenant, 'skill')}…`
+  const mentorsLabel = resolveItem(tenant, 'mentors')?.label
   let lastGroup = ''
 
   return (
     <div className="palette-backdrop" onMouseDown={onClose}>
       <div className="palette" role="dialog" aria-modal="true" aria-label="Search" onMouseDown={e => e.stopPropagation()}>
+        <div className="palette-input">
+        <Icon name="search" size={20} />
         <input
           ref={input}
           value={q}
-          placeholder="Search people, roles, gigs, skills, pages…"
+          placeholder={placeholder}
           aria-label="Search"
           role="combobox"
           aria-expanded={results.length > 0}
@@ -95,16 +107,25 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
             if (e.key === 'Enter' && results[i]) go(results[i])
           }}
         />
+        </div>
         {!q.trim() && (
           <div className="palette-hint">
-            <p>Try:</p>
-            {suggestions.map(s => <button key={s} className="chip-btn" onClick={() => setQ(s)}>{s}</button>)}
-            <p className="muted small">Search understands other names for things. On this site, mentoring is called “{resolveItem(tenant, 'mentors')?.label ?? 'hidden'}”.</p>
+            <p className="muted small">Search understands other names for things{mentorsLabel && <>. Here, mentoring is called “{mentorsLabel}”</>}. Try:</p>
+            <div className="chips">{suggestions.map(s => <button key={s} className="chip-btn" onClick={() => { setQ(s); input.current?.focus() }}>{s}</button>)}</div>
           </div>
         )}
-        {q.trim() && results.length === 0 && <p className="palette-empty">Nothing found for “{q}”.</p>}
-        {q.trim() && tenant.hidden.map(id => ITEMS.find(i => i.id === id)!).filter(def => [def.label, ...def.synonyms].some(n => norm(n).startsWith(norm(q.trim())))).map(def => (
-          <p key={def.id} className="palette-empty muted small">“{def.label}” isn’t used at your organisation.</p>
+        {q.trim() && results.length === 0 && (
+          <div className="palette-empty">
+            <p>Nothing found for “{q}”. Try a shorter word, or go to:</p>
+            <div className="chips">
+              {visibleSpaces(role).filter(sp => sp.id !== 'home').flatMap(sp => itemsInSpace(tenant, sp.id)).slice(0, 6).map(it => (
+                <button key={it.id} className="chip-btn" onClick={() => { onClose(); dispatch({ type: 'setOrigin', origin: null }); nav(it.path) }}>{it.label}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {q.trim() && tenant.hidden.map(id => ITEMS.find(i => i.id === id)!).filter(def => [fill(def.label, tenant), ...def.synonyms].some(n => norm(n).startsWith(norm(q.trim())))).map(def => (
+          <p key={def.id} className="palette-empty muted small">“{fill(def.label, tenant)}” isn’t used at your organisation.</p>
         ))}
         <ul id="search-results" role="listbox" className="results">
           {results.map((r, idx) => {
@@ -121,6 +142,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
             )
           })}
         </ul>
+        <p className="palette-foot" aria-hidden><span><kbd>↑</kbd><kbd>↓</kbd> to move</span><span><kbd>↵</kbd> to open</span><span><kbd>esc</kbd> to close</span></p>
       </div>
     </div>
   )

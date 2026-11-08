@@ -3,8 +3,8 @@
  * single suggested next step. Keep this the only place that decides “what next”,
  * so Home, the nav pill and end-of-task panels always agree.
  */
-import { courses, gigs, mentors, reports, skills, targetRole, DUE_DATE, type Level, type Skill } from './data'
-import { resolveItem, type TenantConfig, type ItemId } from './ia'
+import { courses, gigs, mentors, person, reports, skills, targetRole, DUE_DATE, type Level, type Skill } from './data'
+import { cap, resolveItem, term, type Tenant, type ItemId } from './ia'
 import type { State } from './store'
 
 export function needsAttention(state: State): Skill[] {
@@ -39,24 +39,36 @@ export function optionsForSkill(skillId: string) {
 
 export interface NextStep { title: string; detail: string; path: string; cta: string }
 
-const label = (t: TenantConfig, id: ItemId, fallback: string) => resolveItem(t, id)?.label ?? fallback
+const label = (t: Tenant, id: ItemId, fallback: string) => resolveItem(t, id)?.label ?? fallback
 
-export function nextStep(state: State, tenant: TenantConfig): NextStep {
+/** Whether a “Start here” step is done. Only some steps can be finished in the prototype. */
+export const startStepDone = (state: State, id: ItemId) => (id === 'about' ? state.aboutDone : id === 'skills' ? state.assessmentDone : false)
+
+export function nextStep(state: State, tenant: Tenant): NextStep {
+  const t = (id: Parameters<typeof term>[1], n?: number) => term(tenant, id, n)
+  const manager = person.manager.split(' ')[0]
   if (state.mode === 'leader') {
     const due = reports.filter(r => r.dueSkills.some(sk => !state.teamRatings[r.id]?.[sk]))
     if (due.length)
-      return { title: `Rate skills for ${due.length} ${due.length === 1 ? 'person' : 'people'}`, detail: `Due ${DUE_DATE} for your team’s review cycle.`, path: '/team/reviews', cta: 'Start rating' }
+      return { title: `Rate ${t('skill')} for ${due.length} ${due.length === 1 ? 'person' : 'people'}`, detail: `Due ${DUE_DATE} for your team’s ${t('review', 1)} cycle.`, path: '/team/reviews', cta: 'Start rating' }
   }
-  if (state.mode === 'first' && !state.aboutDone) {
-    const about = label(tenant, 'about', 'About me')
-    return { title: 'Start with what matters to you at work', detail: `A 5-minute exercise in ${about}. It shapes every suggestion after it.`, path: '/growth/about', cta: 'Start' }
+  // First visit: the client's rollout order decides, so Home, the pill and “Start here” agree.
+  if (state.mode === 'first') {
+    const id = tenant.startHere.find(id => resolveItem(tenant, id) && !startStepDone(state, id))
+    if (id === 'about')
+      return { title: 'Start with what matters to you at work', detail: `A 2-minute exercise in ${label(tenant, 'about', 'About me')}. It shapes every suggestion after it.`, path: '/growth/about', cta: 'Start' }
+    if (id === 'skills')
+      return { title: `Rate your ${t('skill')}`, detail: `${skills.length} ${t('skill')} for ${person.role}. About 8 minutes, and you can stop any time.`, path: '/growth/skills', cta: 'Start rating' }
+    if (id) {
+      const it = resolveItem(tenant, id)!
+      return { title: `Look around ${it.label}`, detail: it.description + '.', path: it.path, cta: `Open ${it.label.toLowerCase()}` }
+    }
   }
-  if (!state.assessmentDone) {
+  if (!state.assessmentDone && state.mode !== 'first') {
     const n = needsAttention(state).length
-    const sk = label(tenant, 'skills', 'Skills').toLowerCase()
-    return { title: `Confirm your ${sk} by ${DUE_DATE}`, detail: `${n} need${n === 1 ? 's' : ''} your attention; the rest carry over from last time.`, path: '/growth/skills', cta: 'Review' }
+    return { title: `Confirm your ${t('skill')} by ${DUE_DATE}`, detail: `${n} need${n === 1 ? 's' : ''} your attention. The rest carry over from last time.`, path: '/growth/skills', cta: `Review ${n} ${t('skill', n)}` }
   }
-  const top = gaps(state)[0]
+  const top = state.assessmentDone ? gaps(state)[0] : undefined
   if (top) {
     const opts = optionsForSkill(top.skill.id)
     const acted =
@@ -66,12 +78,13 @@ export function nextStep(state: State, tenant: TenantConfig): NextStep {
     if (!acted)
       return {
         title: `Grow ${top.skill.name}`,
-        detail: `Your biggest gap for ${targetRole.title}. ${opts.gigs.length} gigs, ${opts.mentors.length} mentor${opts.mentors.length === 1 ? '' : 's'}, ${opts.courses.length} courses match.`,
+        detail: `Your biggest gap for ${targetRole.title}. ${opts.gigs.length} ${t('gig', opts.gigs.length)}, ${opts.mentors.length} ${t('mentor', opts.mentors.length)} and ${opts.courses.length} ${t('course', opts.courses.length)} can help.`,
         path: `/growth/targets#gap-${top.skill.id}`,
         cta: 'See options',
       }
   }
-  if (state.applications.length)
-    return { title: 'Tell your manager about your application', detail: 'Gig owners often check with your manager. A quick heads-up helps.', path: '/growth/plan', cta: 'Open my plan' }
-  return { title: 'You’re up to date', detail: 'Explore what else your skills could lead to.', path: '/explore/paths', cta: 'Explore paths' }
+  const untold = state.applications.find(a => !a.managerTold)
+  if (untold)
+    return { title: `Tell ${manager} about your application`, detail: `You said you’d let ${manager} know. ${cap(t('gig', 1))} owners often check with your manager first.`, path: '/growth/plan', cta: `Open your ${label(tenant, 'plan', 'plan').toLowerCase()}` }
+  return { title: 'You’re up to date', detail: `See where else your ${t('skill')} could take you.`, path: '/explore/paths', cta: `Explore ${label(tenant, 'paths', 'paths').toLowerCase()}` }
 }

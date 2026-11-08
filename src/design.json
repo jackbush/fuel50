@@ -1,0 +1,44 @@
+{
+  "color": {
+    "ink": "#1b1820",
+    "muted": "#5e5866",
+    "line": "#ddd8d2",
+    "canvas": "#f6f4f1",
+    "surface": "#ffffff",
+    "accent": "#951986",
+    "highlight": "#e0503c",
+    "chrome": "#1e1424",
+    "success": "#1f7a4d",
+    "attention": "#8a3a12"
+  },
+  "type": {
+    "family": "system",
+    "size": 16,
+    "ratio": 1.2,
+    "leading": 1.5,
+    "headingWeight": 650,
+    "headingTracking": -0.015
+  },
+  "space": {
+    "unit": 4,
+    "section": 48,
+    "cardPadding": 24,
+    "gridGap": 16,
+    "control": 40
+  },
+  "layout": {
+    "width": 1180,
+    "gutter": 32,
+    "topbar": 64
+  },
+  "shape": {
+    "radius": 10,
+    "border": 1,
+    "cardShadow": 0,
+    "elevation": 1
+  },
+  "motion": {
+    "duration": 200,
+    "easing": "expo"
+  }
+}

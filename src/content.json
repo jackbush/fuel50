@@ -1,0 +1,21 @@
+{
+  "spaces": {
+    "home": "Home",
+    "growth": "My growth",
+    "explore": "Explore",
+    "team": "My team",
+    "admin": "Admin"
+  },
+  "terms": {
+    "skill": ["skill", "skills"],
+    "role": ["role", "roles"],
+    "path": ["path", "paths"],
+    "gig": ["gig", "gigs"],
+    "mentor": ["mentor", "mentors"],
+    "course": ["course", "courses"],
+    "vacancy": ["vacancy", "vacancies"],
+    "plan": ["plan", "plans"],
+    "review": ["review", "reviews"],
+    "mentee": ["mentee", "mentees"]
+  }
+}

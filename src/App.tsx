@@ -6,7 +6,7 @@ import { ProtoPanel } from './components/ProtoPanel'
 import { Start } from './pages/Start'
 import { Home } from './pages/Home'
 import { GrowthOverview, Skills, TargetRoles, Plan, AboutMe } from './pages/Growth'
-import { Gigs, GigDetail, Mentors, Learning, Vacancies, CareerPaths } from './pages/Explore'
+import { ExploreOverview, Gigs, GigDetail, Mentors, Learning, Vacancies, CareerPaths } from './pages/Explore'
 import { Team, Reviews, Mentees } from './pages/Team'
 import { Admin, NotFound } from './pages/Misc'
 
@@ -49,6 +49,7 @@ export default function App() {
           <Route path="/growth/targets" element={<TargetRoles />} />
           <Route path="/growth/plan" element={<Plan />} />
           <Route path="/growth/about" element={<AboutMe />} />
+          <Route path="/explore" element={<ExploreOverview />} />
           <Route path="/explore/paths" element={<CareerPaths />} />
           <Route path="/explore/gigs" element={<Gigs />} />
           <Route path="/explore/gigs/:id" element={<GigDetail />} />

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { itemsInSpace, spaceLabel, visibleSpaces, itemForPath, SPACES, resolveItem, type ItemId } from '../ia'
+import { cap, fill, isLanding, term, itemsInSpace, spaceLabel, visibleSpaces, itemForPath, SPACES, resolveItem, type ItemId } from '../ia'
 import { nextStep } from '../logic'
 import { gigById, person } from '../data'
+import { Icon } from './ui'
 
 /** A link that crosses into another module. It remembers where you came from. */
 export function CrossLink({ to, from, children, className }: { to: string; from: string; children: ReactNode; className?: string }) {
@@ -28,6 +29,8 @@ export function CrossLink({ to, from, children, className }: { to: string; from:
 export function TopNav({ onSearch }: { onSearch: () => void }) {
   const { state, tenant, role, dispatch } = useStore()
   const [open, setOpen] = useState<string | null>(null)
+  const openRef = useRef(open)
+  openRef.current = open
   const loc = useLocation()
   const nav = useNavigate()
   const ref = useRef<HTMLDivElement>(null)
@@ -37,20 +40,27 @@ export function TopNav({ onSearch }: { onSearch: () => void }) {
   useEffect(() => setOpen(null), [loc.pathname])
   useEffect(() => {
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(null) }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(null) }
+    // Escape closes the open menu and puts focus back on the button that opened it.
+    // Found from the open menu, not from focus: Safari doesn't focus buttons on click.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !openRef.current) return
+      ref.current?.querySelector<HTMLElement>(`[aria-controls="menu-${openRef.current}"]`)?.focus()
+      setOpen(null)
+    }
     document.addEventListener('mousedown', onDoc); document.addEventListener('keydown', onKey)
     return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
   }, [])
 
   // Main navigation is a deliberate jump: forget any cross-module origin.
-  const go = (path: string) => { dispatch({ type: 'setOrigin', origin: null }); nav(path) }
+  const clearOrigin = () => dispatch({ type: 'setOrigin', origin: null })
+  const go = (path: string) => { clearOrigin(); nav(path) }
 
   return (
     <header className="topbar" ref={ref}>
       <a className="skip" href="#main">Skip to content</a>
-      <button className="logo" onClick={() => go('/')} aria-label="Fuel50 home">
+      <Link className="logo" to="/" onClick={clearOrigin} aria-label={`Fuel50 ${spaceLabel(tenant, 'home')}`}>
         <span className="logo-mark" aria-hidden>F</span> <span>Fuel50</span>
-      </button>
+      </Link>
       <nav aria-label="Main">
         <ul className="spaces">
           {visibleSpaces(role).map(sp => {
@@ -58,9 +68,9 @@ export function TopNav({ onSearch }: { onSearch: () => void }) {
             if (sp.id === 'home')
               return (
                 <li key={sp.id}>
-                  <button className={'space' + (isCurrent ? ' current' : '')} aria-current={isCurrent ? 'page' : undefined} onClick={() => go('/')}>
+                  <Link className={'space' + (isCurrent ? ' current' : '')} aria-current={isCurrent ? 'page' : undefined} to="/" onClick={clearOrigin}>
                     {spaceLabel(tenant, 'home')}
-                  </button>
+                  </Link>
                 </li>
               )
             const items = itemsInSpace(tenant, sp.id)
@@ -72,19 +82,24 @@ export function TopNav({ onSearch }: { onSearch: () => void }) {
                   className={'space' + (isCurrent ? ' current' : '')}
                   aria-expanded={expanded}
                   aria-controls={`menu-${sp.id}`}
+                  aria-current={isCurrent ? 'true' : undefined}
                   onClick={() => setOpen(expanded ? null : sp.id)}
                 >
-                  {spaceLabel(tenant, sp.id)} <span aria-hidden className="caret">▾</span>
+                  {spaceLabel(tenant, sp.id)} <span className="caret"><Icon name="chevron" size={14} /></span>
                 </button>
                 {expanded && (
-                  <div className="menu" id={`menu-${sp.id}`} role="menu">
-                    <p className="menu-blurb">{sp.blurb}</p>
-                    {items.map(it => (
-                      <button key={it.id} role="menuitem" className={'menu-item' + (current?.id === it.id ? ' current' : '')} onClick={() => go(it.path)}>
-                        <span className="menu-label">{it.label}</span>
-                        <span className="menu-desc">{it.description}</span>
-                      </button>
-                    ))}
+                  <div className="menu" id={`menu-${sp.id}`}>
+                    <p className="menu-blurb">{fill(sp.blurb, tenant)}</p>
+                    <ul className="plain-menu">
+                      {items.map(it => (
+                        <li key={it.id}>
+                          <Link to={it.path} onClick={clearOrigin} aria-current={current?.id === it.id ? 'page' : undefined} className={'menu-item' + (current?.id === it.id ? ' current' : '')}>
+                            <span className="menu-label">{it.label}</span>
+                            <span className="menu-desc">{it.description}</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </li>
@@ -92,32 +107,37 @@ export function TopNav({ onSearch }: { onSearch: () => void }) {
           })}
         </ul>
       </nav>
-      <button className="search-trigger" onClick={onSearch} aria-label="Search (Ctrl+K)">
-        <span aria-hidden>⌕</span> Search people, roles, gigs, skills, pages…<kbd>⌘K</kbd>
+      <button className="search-trigger" onClick={onSearch} aria-label="Search" aria-keyshortcuts="Control+K Meta+K /">
+        <Icon name="search" /> <span className="search-text">Search pages, {term(tenant, 'gig')}, {term(tenant, 'skill')}…</span><kbd>⌘K</kbd>
       </button>
-      <button className="next-pill" onClick={() => go(step.path)} title={step.detail}>
-        <span className="dot" aria-hidden /> <span className="next-label">Next:</span> {step.title}
+      <button
+        className="next-pill"
+        title={step.detail}
+        // Already there: take you to the page title rather than doing nothing.
+        onClick={() => (loc.pathname + loc.hash === step.path ? document.querySelector<HTMLElement>('main h1')?.focus() : go(step.path))}
+      >
+        <span className="dot" aria-hidden /> <span className="next-label">Next:</span> <span className="next-text">{step.title}</span>
       </button>
-      <AvatarMenu go={go} />
+      <AvatarMenu open={open === 'avatar'} setOpen={o => setOpen(o ? 'avatar' : null)} onNavigate={clearOrigin} />
     </header>
   )
 }
 
-function AvatarMenu({ go }: { go: (p: string) => void }) {
-  const [open, setOpen] = useState(false)
+function AvatarMenu({ open, setOpen, onNavigate }: { open: boolean; setOpen: (o: boolean) => void; onNavigate: () => void }) {
   const { tenant } = useStore()
-  const about = resolveItem(tenant, 'about')
+  const overview = resolveItem(tenant, 'growth-overview')
   return (
     <div className="avatar-wrap">
-      <button className="avatar" aria-expanded={open} onClick={() => setOpen(!open)} aria-label="Your account">
+      <button className="avatar" aria-expanded={open} aria-controls="menu-avatar" onClick={() => setOpen(!open)} aria-label="Your account">
         {person.name.split(' ').map(p => p[0]).join('')}
       </button>
       {open && (
-        <div className="menu avatar-menu" role="menu">
-          <p className="menu-blurb">{person.name}<br />{person.role}</p>
-          {about && <button role="menuitem" className="menu-item" onClick={() => { setOpen(false); go('/growth') }}><span className="menu-label">My profile</span></button>}
-          <button role="menuitem" className="menu-item" onClick={() => { setOpen(false); go('/admin') }}><span className="menu-label">Switch to Admin</span><span className="menu-desc">Only for admins. Same shell, keeps your place.</span></button>
-          <button role="menuitem" className="menu-item" onClick={() => setOpen(false)}><span className="menu-label">Preferences</span></button>
+        <div className="menu avatar-menu" id="menu-avatar">
+          <p className="menu-blurb"><strong>{person.name}</strong><br />{person.role}</p>
+          <ul className="plain-menu">
+            {overview && <li><Link className="menu-item" to={overview.path} onClick={onNavigate}><span className="menu-label">Your {overview.label.toLowerCase()}</span><span className="menu-desc">{spaceLabel(tenant, 'growth')} › {overview.label}</span></Link></li>}
+            <li><Link className="menu-item" to="/admin" onClick={onNavigate}><span className="menu-label">Switch to {spaceLabel(tenant, 'admin')}</span><span className="menu-desc">For admins. Same shell, keeps your place.</span></Link></li>
+          </ul>
         </div>
       )}
     </div>
@@ -132,10 +152,11 @@ export function Breadcrumbs() {
   if (!item || item.id === 'home') return null
   const resolved = resolveItem(tenant, item.id as ItemId)
   const space = SPACES.find(s => s.id === item.space)!
-  const crumbs: { label: string; path?: string }[] = [{ label: spaceLabel(tenant, space.id), path: space.id === 'growth' ? '/growth' : undefined }]
-  if (item.id !== 'growth-overview') crumbs.push({ label: resolved?.label ?? item.label, path: item.path })
+  // Every space has its own page, so the space crumb is always a link; on that page it is the last crumb.
+  const crumbs: { label: string; path?: string }[] = [{ label: spaceLabel(tenant, space.id), path: space.path }]
+  if (!isLanding(item)) crumbs.push({ label: resolved?.label ?? cap(fill(item.label, tenant)), path: item.path })
   const gigMatch = loc.pathname.match(/^\/explore\/gigs\/(.+)$/)
-  if (gigMatch) crumbs.push({ label: gigById(gigMatch[1])?.title ?? 'Gig' })
+  if (gigMatch) crumbs.push({ label: gigById(gigMatch[1])?.title ?? cap(term(tenant, 'gig', 1)) })
   return (
     <nav aria-label="Breadcrumb" className="crumbs">
       <ol>
@@ -166,28 +187,31 @@ export function ReturnBanner() {
         className="return-link"
         onClick={() => { dispatch({ type: 'setOrigin', origin: null }); nav(o.path) }}
       >
-        ← Back to {o.label}
+        <Icon name="back" /> Back to {o.label}
       </button>
-      <button className="return-dismiss" aria-label="Dismiss" onClick={() => dispatch({ type: 'setOrigin', origin: null })}>×</button>
+      <button className="return-dismiss" aria-label="Dismiss" title="Dismiss" onClick={() => dispatch({ type: 'setOrigin', origin: null })}><Icon name="close" size={14} /></button>
     </div>
   )
 }
 
 export function Toasts() {
-  const { state, dispatch } = useStore()
+  const { state, tenant, dispatch } = useStore()
   const nav = useNavigate()
+  // Hovering or focusing a toast holds it, so there's time to use its link.
+  const [held, setHeld] = useState(false)
   useEffect(() => {
-    if (!state.toasts.length) return
+    if (!state.toasts.length || held) return
     const t = setTimeout(() => dispatch({ type: 'dismissToast', id: state.toasts[0].id }), 6000)
     return () => clearTimeout(t)
-  }, [state.toasts, dispatch])
+  }, [state.toasts, held, dispatch])
+  useEffect(() => { if (!state.toasts.length) setHeld(false) }, [state.toasts.length])
   return (
-    <div className="toasts" aria-live="polite">
+    <div className="toasts" aria-live="polite" onMouseEnter={() => setHeld(true)} onMouseLeave={() => setHeld(false)} onFocus={() => setHeld(true)} onBlur={() => setHeld(false)}>
       {state.toasts.map(t => (
         <div key={t.id} className="toast">
-          <span>{t.text}</span>
+          <span>{fill(t.text, tenant)}</span>
           {t.link && <button className="toast-link" onClick={() => { dispatch({ type: 'dismissToast', id: t.id }); nav(t.link!.path) }}>{t.link.label}</button>}
-          <button aria-label="Dismiss" className="toast-x" onClick={() => dispatch({ type: 'dismissToast', id: t.id })}>×</button>
+          <button aria-label="Dismiss" title="Dismiss" className="toast-x" onClick={() => dispatch({ type: 'dismissToast', id: t.id })}><Icon name="close" size={14} /></button>
         </div>
       ))}
     </div>

@@ -1,14 +1,65 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useStore } from '../store'
-import { resolveItem } from '../ia'
+import { cap, isLanding, itemsInSpace, resolveItem, term, type TermId } from '../ia'
 import { courses, gigById, gigs, mentors, paths, person, skillById, targetRole, vacancies } from '../data'
 import { gaps, optionsForSkill } from '../logic'
-import { Card, Empty, PageHeader, SkillChip } from '../components/ui'
+import { Card, Empty, Icon, PageHeader, SkillChip } from '../components/ui'
 import { NotFound } from './Misc'
+
+const useTerm = () => {
+  const { tenant } = useStore()
+  return (id: TermId, n?: number) => term(tenant, id, n)
+}
+
+function ChipLegend() {
+  return (
+    <p className="chip-legend" aria-hidden>
+      <span className="grow"><i /> You’d grow</span>
+      <span className="have"><i /> You already have</span>
+    </p>
+  )
+}
+
+/** Explore's own page: what each part holds, and what matches your biggest gap. */
+export function ExploreOverview() {
+  const { state, tenant } = useStore()
+  const t = useTerm()
+  const top = gaps(state)[0]
+  const opts = top ? optionsForSkill(top.skill.id) : null
+  const status: Record<string, string> = {
+    paths: `${paths.length} ${t('path', paths.length)} · ${paths.filter(p => p.saved).length} saved`,
+    gigs: `${gigs.length} open${top ? ` · ${opts!.gigs.length} ${opts!.gigs.length === 1 ? 'grows' : 'grow'} ${top.skill.name}` : ''}`,
+    mentors: `${mentors.length} available${top ? ` · ${opts!.mentors.length} for ${top.skill.name}` : ''}`,
+    learning: `${courses.length} ${t('course', courses.length)}${top ? ` · ${opts!.courses.length} for ${top.skill.name}` : ''}`,
+    vacancies: `${vacancies.length} open ${t('role', vacancies.length)}`,
+  }
+  return (
+    <>
+      <PageHeader item="explore-overview" />
+      {top && opts && (
+        <Card className="next" label="Matched to your biggest gap">
+          <h2>{top.skill.name} is your biggest gap</h2>
+          <p className="muted">For {targetRole.title}. {opts.gigs.length} {t('gig', opts.gigs.length)}, {opts.mentors.length} {t('mentor', opts.mentors.length)} and {opts.courses.length} {t('course', opts.courses.length)} can help.</p>
+          <Link className="more" to={`/growth/targets#gap-${top.skill.id}`}>See your options <Icon name="arrow" /></Link>
+        </Card>
+      )}
+      <div className="grid-2">
+        {itemsInSpace(tenant, 'explore').filter(i => !isLanding(i)).map(it => (
+          <Link key={it.id} to={it.path} className="tile">
+            <span className="tile-title">{it.label}</span>
+            <span className="tile-desc">{it.description}</span>
+            <span className="tile-status">{status[it.id]}</span>
+          </Link>
+        ))}
+      </div>
+    </>
+  )
+}
 
 export function Gigs() {
   const { state } = useStore()
+  const t = useTerm()
   const top = gaps(state)[0]
   const [onlyGap, setOnlyGap] = useState(false)
   const list = onlyGap && top ? gigs.filter(g => g.grow.includes(top.skill.id)) : gigs
@@ -16,20 +67,24 @@ export function Gigs() {
     <>
       <PageHeader item="gigs" />
       {top && (
-        <div className="filters" role="group" aria-label="Filter gigs">
+        <div className="filters" role="group" aria-label={`Filter ${t('gig')}`}>
           <button className="chip-btn" aria-pressed={!onlyGap} onClick={() => setOnlyGap(false)}>All ({gigs.length})</button>
           <button className="chip-btn" aria-pressed={onlyGap} onClick={() => setOnlyGap(true)}>Grows {top.skill.name}</button>
         </div>
       )}
+      <ChipLegend />
       <ul className="cards">
         {list.map(g => {
           const applied = state.applications.some(a => a.gigId === g.id)
           return (
             <li key={g.id}>
               <Link to={`/explore/gigs/${g.id}`} className="card link-card">
-                <span className="card-kicker">{g.team} · {g.weeks} weeks · {g.hoursPerWeek} h/week{applied && ' · Applied'}</span>
-                <span className="card-title">{g.title}</span>
-                <span className="chips">{g.grow.map(id => <SkillChip key={id} id={id} kind="grow" />)}{g.have.map(id => <SkillChip key={id} id={id} kind="have" />)}</span>
+                <h2 className="card-title">{g.title}</h2>
+                <span className="card-meta">{g.team} · {g.weeks} weeks · {g.hoursPerWeek} h a week{applied && <span className="status ok">Applied</span>}</span>
+                <span className="chips">
+                  {g.grow.map(id => <SkillChip key={id} id={id} kind="grow" />)}
+                  {g.have.map(id => <SkillChip key={id} id={id} kind="have" />)}
+                </span>
               </Link>
             </li>
           )
@@ -42,58 +97,77 @@ export function Gigs() {
 export function GigDetail() {
   const { id } = useParams()
   const g = gigById(id ?? '')
-  const { state, dispatch } = useStore()
-  const [applying, setApplying] = useState(false)
+  const { state, dispatch, tenant } = useStore()
+  const t = useTerm()
+  const dialog = useRef<HTMLDialogElement>(null)
+  const after = useRef<HTMLAnchorElement>(null)
+  // Kept outside the dialog, so closing it (by accident or not) never loses what was typed.
   const [told, setTold] = useState<'yes' | 'no' | ''>('')
+  const [note, setNote] = useState('')
+  const applied = !!g && state.applications.some(a => a.gigId === g.id)
+  useEffect(() => { if (applied && dialog.current?.open) dialog.current.close() }, [applied])
   if (!g) return <NotFound />
-  const applied = state.applications.some(a => a.gigId === g.id)
+
+  const manager = person.manager.split(' ')[0]
   const other = g.grow[0] ? optionsForSkill(g.grow[0]) : null
+  const mentorsItem = resolveItem(tenant, 'mentors'), learningItem = resolveItem(tenant, 'learning'), plan = resolveItem(tenant, 'plan')
+  const send = () => {
+    dispatch({ type: 'apply', gigId: g.id, title: g.title, managerTold: told === 'yes' })
+    requestAnimationFrame(() => after.current?.focus())
+  }
+
   return (
     <>
       <PageHeader title={g.title} sub={`${g.team} · posted by ${g.owner} · ${g.weeks} weeks, about ${g.hoursPerWeek} hours a week`}>
-        {applied ? <Link className="btn ghost" to="/growth/plan">Applied · view in my plan</Link> : <button className="btn primary" onClick={() => setApplying(true)}>Apply</button>}
+        {applied
+          ? <Link ref={after} className="btn done" to="/growth/plan"><Icon name="check" /> Applied · view in your {plan?.label.toLowerCase() ?? 'plan'}</Link>
+          : <button className="btn primary" onClick={() => dialog.current?.showModal()}>Apply</button>}
       </PageHeader>
       <div className="grid-2">
-        <Card><h2>About this gig</h2><p>{g.summary}</p></Card>
+        <Card><h2 className="card-heading">About this {t('gig', 1)}</h2><p>{g.summary}</p></Card>
         <Card>
-          <h2>How it fits you</h2>
-          <p className="eyebrow">You’ve got this</p>
-          <p className="chips">{g.have.map(s => <SkillChip key={s} id={s} kind="have" />)}</p>
-          <p className="eyebrow">You’d grow this</p>
+          <h2 className="card-heading">How it fits you</h2>
+          <h3 className="sub-heading">You’d grow</h3>
           <p className="chips">{g.grow.length ? g.grow.map(s => <SkillChip key={s} id={s} kind="grow" />) : <span className="muted">Nothing new; a chance to share what you know.</span>}</p>
+          <h3 className="sub-heading">You already have</h3>
+          <p className="chips">{g.have.map(s => <SkillChip key={s} id={s} kind="have" />)}</p>
           {g.grow.some(s => skillById(s).target > (state.ratings[s] ?? 0)) && <p className="small">Helps close a gap for <Link to="/growth/targets">{targetRole.title}</Link>.</p>}
         </Card>
       </div>
-      {applying && !applied && (
-        <div className="dialog-backdrop" onMouseDown={() => setApplying(false)}>
-          <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="apply-title" onMouseDown={e => e.stopPropagation()}>
-            <h2 id="apply-title">Apply for “{g.title}”</h2>
-            <fieldset className="levels">
-              <legend>Have you talked to {person.manager} about it?</legend>
-              <label className="level-option"><input type="radio" name="told" checked={told === 'yes'} onChange={() => setTold('yes')} /> Yes</label>
-              <label className="level-option"><input type="radio" name="told" checked={told === 'no'} onChange={() => setTold('no')} /> Not yet. I’ll tell them.</label>
-            </fieldset>
-            <label className="field">Why you’re interested (optional)<textarea rows={3} /></label>
-            <div className="row">
-              <button className="btn ghost" onClick={() => setApplying(false)}>Cancel</button>
-              <button className="btn primary" disabled={!told} onClick={() => { dispatch({ type: 'apply', gigId: g.id, title: g.title }); setApplying(false) }}>Send application</button>
-            </div>
-          </div>
-        </div>
-      )}
       {other && (other.mentors.length > 0 || other.courses.length > 0) && (
         <Card className="muted-card">
-          <h2>Other ways to grow {skillById(g.grow[0]).name}</h2>
-          <p>{other.mentors.map(m => m.name).join(', ')}{other.mentors.length && other.courses.length ? ' · ' : ''}{other.courses.map(c => c.title).join(', ')}</p>
-          <p><Link to="/explore/mentors">Mentors</Link> · <Link to="/explore/learning">Learning</Link></p>
+          <h2 className="card-heading">Other ways to grow {skillById(g.grow[0]).name}</h2>
+          <ul className="plain">
+            {mentorsItem && other.mentors.map(m => <li key={m.id}><span>{m.name} <span className="muted">· {cap(t('mentor', 1))}, {m.role}</span></span><Link to={mentorsItem.path}>{mentorsItem.label}</Link></li>)}
+            {learningItem && other.courses.map(c => <li key={c.id}><span>{c.title} <span className="muted">· {cap(t('course', 1))}, {c.hours} h</span></span><Link to={learningItem.path}>{learningItem.label}</Link></li>)}
+          </ul>
         </Card>
       )}
+
+      <dialog ref={dialog} className="dialog" aria-labelledby="apply-title" onClick={e => { if (e.target === e.currentTarget) e.currentTarget.close() }}>
+        <form method="dialog" onSubmit={e => { e.preventDefault(); if (told) send() }}>
+          <h2 id="apply-title">Apply for “{g.title}”</h2>
+          <p className="muted">{g.owner} will reply within a week. {manager} gets a copy, so they’re not surprised.</p>
+          <fieldset className="levels">
+            <legend>Have you talked to {person.manager} about it?</legend>
+            <label className={'level-option' + (told === 'yes' ? ' selected' : '')}><input type="radio" name="told" autoFocus checked={told === 'yes'} onChange={() => setTold('yes')} /> Yes</label>
+            <label className={'level-option' + (told === 'no' ? ' selected' : '')}><input type="radio" name="told" checked={told === 'no'} onChange={() => setTold('no')} /> Not yet. I’ll tell them.</label>
+          </fieldset>
+          <label className="field">Why you’re interested <span className="muted">Optional</span><textarea rows={3} value={note} onChange={e => setNote(e.target.value)} /></label>
+          <div className="row">
+            {!told && <span className="muted small row-note">Answer the question to send</span>}
+            <button type="button" className="btn ghost" onClick={() => dialog.current?.close()}>Cancel</button>
+            <button type="submit" className="btn primary" disabled={!told}>Send application</button>
+          </div>
+        </form>
+      </dialog>
     </>
   )
 }
 
 export function Mentors() {
   const { state, dispatch } = useStore()
+  const t = useTerm()
   return (
     <>
       <PageHeader item="mentors" />
@@ -102,11 +176,15 @@ export function Mentors() {
           const asked = state.mentorRequests.includes(m.id)
           return (
             <li key={m.id}><div className="card">
-              <span className="card-title">{m.name}</span>
-              <span className="card-kicker">{m.role}</span>
+              <h2 className="card-title">{m.name}</h2>
+              <span className="card-meta">{m.role}</span>
               <p>{m.blurb}</p>
               <span className="chips">{m.skills.map(s => <SkillChip key={s} id={s} />)}</span>
-              <div className="row"><button className="btn" disabled={asked} onClick={() => dispatch({ type: 'requestMentor', id: m.id, name: m.name })}>{asked ? 'Requested' : 'Ask to mentor me'}</button></div>
+              <div className="row">
+                <button className={'btn' + (asked ? ' done' : '')} disabled={asked} onClick={() => dispatch({ type: 'requestMentor', id: m.id, name: m.name })}>
+                  {asked ? <><Icon name="check" /> Requested</> : `Ask to be my ${t('mentor', 1)}`}
+                </button>
+              </div>
             </div></li>
           )
         })}
@@ -116,7 +194,8 @@ export function Mentors() {
 }
 
 export function Learning() {
-  const { state, dispatch } = useStore()
+  const { state, dispatch, tenant } = useStore()
+  const plan = 'your ' + (resolveItem(tenant, 'plan')?.label.toLowerCase() ?? 'plan')
   return (
     <>
       <PageHeader item="learning" />
@@ -125,10 +204,14 @@ export function Learning() {
           const added = state.courses.includes(c.id)
           return (
             <li key={c.id}><div className="card">
-              <span className="card-kicker">{c.provider} · {c.hours} h</span>
-              <span className="card-title">{c.title}</span>
+              <h2 className="card-title">{c.title}</h2>
+              <span className="card-meta">{c.provider} · {c.hours} h</span>
               <span className="chips">{c.skills.map(s => <SkillChip key={s} id={s} />)}</span>
-              <div className="row"><button className="btn" disabled={added} onClick={() => dispatch({ type: 'addCourse', id: c.id, title: c.title })}>{added ? 'In your plan' : 'Add to my plan'}</button></div>
+              <div className="row">
+                <button className={'btn' + (added ? ' done' : '')} disabled={added} onClick={() => dispatch({ type: 'addCourse', id: c.id, title: c.title })}>
+                  {added ? <><Icon name="check" /> In {plan}</> : `Add to ${plan}`}
+                </button>
+              </div>
             </div></li>
           )
         })}
@@ -138,14 +221,18 @@ export function Learning() {
 }
 
 export function CareerPaths() {
+  const t = useTerm()
   return (
     <>
       <PageHeader item="paths" />
       {paths.map(p => (
         <Card key={p.id} className={p.saved ? 'saved' : ''}>
-          <p className="eyebrow">{p.saved ? 'Saved · your target role is on this path' : 'Suggested'}</p>
-          <h2>{p.title}</h2>
-          <ol className="path">{p.steps.map((s, i) => <li key={s} className={i === 0 ? 'now' : s === targetRole.title ? 'target' : ''}>{s}{i === 0 && <span> (now)</span>}{s === targetRole.title && <span> (target)</span>}</li>)}</ol>
+          <div className="gap-head">
+            <h2 className="card-heading-lg">{p.title}</h2>
+            <span className={'status' + (p.saved ? ' ok' : '')}>{p.saved ? 'Saved' : 'Suggested'}</span>
+          </div>
+          {p.saved && <p className="meta">Your target {t('role', 1)} is on this {t('path', 1)}.</p>}
+          <ol className="path">{p.steps.map((s, i) => <li key={s} className={i === 0 ? 'now' : s === targetRole.title ? 'target' : ''}>{s}{i === 0 && <span>now</span>}{s === targetRole.title && <span>target</span>}</li>)}</ol>
         </Card>
       ))}
     </>
@@ -154,12 +241,13 @@ export function CareerPaths() {
 
 export function Vacancies() {
   const { tenant } = useStore()
-  if (!resolveItem(tenant, 'vacancies')) return <><PageHeader title="Not available" sub="Your organisation doesn’t use this feature." /></>
+  const t = useTerm()
+  if (!resolveItem(tenant, 'vacancies')) return <PageHeader title="Not available" sub="Your organisation doesn’t use this feature." />
   return (
     <>
       <PageHeader item="vacancies" />
-      {vacancies.length === 0 ? <Empty>No open roles right now.</Empty> : (
-        <ul className="cards">{vacancies.map(v => <li key={v.id}><div className="card"><span className="card-kicker">{v.team} · {v.location} · closes {v.closes}</span><span className="card-title">{v.title}</span></div></li>)}</ul>
+      {vacancies.length === 0 ? <Empty>No open {t('role')} right now.</Empty> : (
+        <ul className="cards">{vacancies.map(v => <li key={v.id}><div className="card"><h2 className="card-title">{v.title}</h2><span className="card-meta">{v.team} · {v.location} · closes {v.closes}</span></div></li>)}</ul>
       )}
     </>
   )

@@ -17,6 +17,14 @@ export const person = {
 }
 
 export const LEVELS = ['Not relevant to me', 'Basic', 'Skilled', 'Advanced', 'Expert'] as const
+/** What each level means, shown while rating so nobody has to remember the scale. */
+export const LEVEL_HELP = [
+  'It isn’t part of your work',
+  'You know the basics and still need guidance',
+  'You do it well on your own',
+  'You handle hard cases and help others',
+  'People come to you; you shape how it’s done',
+] as const
 export type Level = 0 | 1 | 2 | 3 | 4
 
 export interface Skill {
@@ -32,24 +40,24 @@ export interface Skill {
 }
 
 export const skills: Skill[] = [
-  { id: 'product-knowledge', name: 'Product Knowledge', description: 'Understanding our products, how they’re used and how they compare.', type: 'specialist', lastRating: 3, target: 3 },
-  { id: 'sales-strategy', name: 'Sales Strategy', description: 'Planning how to reach targets across accounts and segments.', type: 'specialist', lastRating: 2, target: 3 },
+  { id: 'product-knowledge', name: 'Product knowledge', description: 'Understanding our products, how they’re used and how they compare.', type: 'specialist', lastRating: 3, target: 3 },
+  { id: 'sales-strategy', name: 'Sales strategy', description: 'Planning how to reach targets across accounts and segments.', type: 'specialist', lastRating: 2, target: 3 },
   { id: 'negotiation', name: 'Negotiation', description: 'Reaching agreements that work for the customer and for us.', type: 'specialist', lastRating: 3, target: 3 },
-  { id: 'account-management', name: 'Account Management', description: 'Growing long-term relationships with key customers.', type: 'specialist', lastRating: 3, target: 3 },
-  { id: 'forecasting', name: 'Sales Forecasting', description: 'Predicting revenue with enough accuracy to plan around.', type: 'specialist', lastRating: 2, target: 2 },
-  { id: 'crm', name: 'CRM Management', description: 'Keeping pipeline data accurate and useful.', type: 'specialist', lastRating: 3, target: 2 },
-  { id: 'bizdev', name: 'Business Development Strategy', description: 'Finding and shaping new markets, partners and revenue streams.', type: 'specialist', lastRating: 1, target: 3 },
-  { id: 'stakeholders', name: 'Stakeholder Management', description: 'Keeping the right people informed and on side.', type: 'strength', lastRating: 3, target: 3 },
-  { id: 'presenting', name: 'Presentation Skills', description: 'Explaining ideas clearly to groups.', type: 'strength', lastRating: 3, target: 3 },
-  { id: 'market-analysis', name: 'Market Analysis', description: 'Reading market data to spot opportunities and threats.', type: 'specialist', lastRating: 2, target: 2 },
-  { id: 'pricing', name: 'Pricing Strategy', description: 'Setting prices that win business and protect margin.', type: 'specialist', lastRating: 2, target: 2 },
-  { id: 'customer-insight', name: 'Customer Insight', description: 'Understanding what customers need, even when they don’t say it.', type: 'strength', lastRating: 3, target: 3 },
-  { id: 'leadership', name: 'Team Leadership', description: 'Setting direction and helping a team do its best work.', type: 'strength', lastRating: 2, target: 3 },
-  { id: 'coaching', name: 'Coaching Others', description: 'Helping others grow through questions and feedback.', type: 'strength', lastRating: 2, target: 2 },
-  { id: 'contracts', name: 'Contract Management', description: 'Managing terms, renewals and obligations.', type: 'specialist', lastRating: 2, target: 2 },
-  { id: 'data-decisions', name: 'Data-Driven Decision Making', description: 'Using evidence, not instinct alone, to make calls.', type: 'strength', lastRating: null, change: 'new', target: 3 },
-  { id: 'brand-marketing', name: 'Brand Marketing', description: 'Building how customers see and feel about a brand. Now includes digital channels.', type: 'specialist', lastRating: 1, change: 'updated', target: 2 },
-  { id: 'change', name: 'Change Management', description: 'Helping people through new ways of working.', type: 'strength', lastRating: null, target: 2 },
+  { id: 'account-management', name: 'Account management', description: 'Growing long-term relationships with key customers.', type: 'specialist', lastRating: 3, target: 3 },
+  { id: 'forecasting', name: 'Sales forecasting', description: 'Predicting revenue with enough accuracy to plan around.', type: 'specialist', lastRating: 2, target: 2 },
+  { id: 'crm', name: 'CRM management', description: 'Keeping pipeline data accurate and useful.', type: 'specialist', lastRating: 3, target: 2 },
+  { id: 'bizdev', name: 'Business development strategy', description: 'Finding and shaping new markets, partners and revenue streams.', type: 'specialist', lastRating: 1, target: 3 },
+  { id: 'stakeholders', name: 'Stakeholder management', description: 'Keeping the right people informed and on side.', type: 'strength', lastRating: 3, target: 3 },
+  { id: 'presenting', name: 'Presentation skills', description: 'Explaining ideas clearly to groups.', type: 'strength', lastRating: 3, target: 3 },
+  { id: 'market-analysis', name: 'Market analysis', description: 'Reading market data to spot opportunities and threats.', type: 'specialist', lastRating: 2, target: 2 },
+  { id: 'pricing', name: 'Pricing strategy', description: 'Setting prices that win business and protect margin.', type: 'specialist', lastRating: 2, target: 2 },
+  { id: 'customer-insight', name: 'Customer insight', description: 'Understanding what customers need, even when they don’t say it.', type: 'strength', lastRating: 3, target: 3 },
+  { id: 'leadership', name: 'Team leadership', description: 'Setting direction and helping a team do its best work.', type: 'strength', lastRating: 2, target: 3 },
+  { id: 'coaching', name: 'Coaching others', description: 'Helping others grow through questions and feedback.', type: 'strength', lastRating: 2, target: 2 },
+  { id: 'contracts', name: 'Contract management', description: 'Managing terms, renewals and obligations.', type: 'specialist', lastRating: 2, target: 2 },
+  { id: 'data-decisions', name: 'Data-driven decision making', description: 'Using evidence, not instinct alone, to make calls.', type: 'strength', lastRating: null, change: 'new', target: 3 },
+  { id: 'brand-marketing', name: 'Brand marketing', description: 'Building how customers see and feel about a brand. Now includes digital channels.', type: 'specialist', lastRating: 1, change: 'updated', target: 2 },
+  { id: 'change', name: 'Change management', description: 'Helping people through new ways of working.', type: 'strength', lastRating: null, target: 2 },
 ]
 
 export const targetRole = {

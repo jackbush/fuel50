@@ -4,9 +4,15 @@
  * Principle: structure is fixed, names are the client's.
  * - SPACES are fixed. A client can rename a space but not remove it.
  * - ITEMS have a canonical id. A client can rename, hide and reorder items.
+ * - TERMS are the key nouns (skill, gig, mentor…). Ids are internal and stay in
+ *   URLs; the words come from `content.json`, then the client's renames. Item
+ *   labels and descriptions are templates over terms (`Target {role.many}`), so
+ *   renaming a noun once changes nav, titles, search, next steps and copy.
  * - Nav, search, breadcrumbs and next steps all read items through `resolveItem`,
  *   so a renamed or hidden item behaves consistently everywhere.
  */
+
+import contentJson from './content.json'
 
 export type SpaceId = 'home' | 'growth' | 'explore' | 'team' | 'admin'
 export type Audience = 'everyone' | 'leader' | 'admin'
@@ -14,14 +20,23 @@ export type Audience = 'everyone' | 'leader' | 'admin'
 export type ItemId =
   | 'home'
   | 'growth-overview' | 'skills' | 'targets' | 'plan' | 'about'
-  | 'paths' | 'gigs' | 'mentors' | 'learning' | 'vacancies'
+  | 'explore-overview' | 'paths' | 'gigs' | 'mentors' | 'learning' | 'vacancies'
   | 'team' | 'reviews' | 'mentees'
   | 'admin'
+
+export type TermId = keyof typeof contentJson.terms
+/** Singular and plural. */
+export type Term = [one: string, many: string]
+export interface Content { spaces: Record<SpaceId, string>; terms: Record<TermId, Term> }
+/** The default vocabulary. Typed against the structure, so a missing space or term fails the build. */
+export const CONTENT: Content = contentJson satisfies { spaces: Record<SpaceId, string>; terms: Record<TermId, string[]> } as Content
+export const TERM_IDS = Object.keys(CONTENT.terms) as TermId[]
 
 export interface ItemDef {
   id: ItemId
   space: SpaceId
-  label: string // canonical default label
+  /** Template: `{skill.many}`, `{role.one}`, `{space.home}`. The first letter is capitalised. */
+  label: string
   path: string
   description: string
   synonyms: string[] // other names people (and other clients) use
@@ -29,38 +44,38 @@ export interface ItemDef {
 
 export interface SpaceDef {
   id: SpaceId
-  label: string
   blurb: string
   audience: Audience
   path: string
 }
 
 export const SPACES: SpaceDef[] = [
-  { id: 'home', label: 'Home', blurb: 'Where you left off and what’s next', audience: 'everyone', path: '/' },
-  { id: 'growth', label: 'My growth', blurb: 'Everything that’s yours', audience: 'everyone', path: '/growth' },
-  { id: 'explore', label: 'Explore', blurb: 'What you could do next', audience: 'everyone', path: '/explore/gigs' },
-  { id: 'team', label: 'My team', blurb: 'People you look after', audience: 'leader', path: '/team' },
-  { id: 'admin', label: 'Admin', blurb: 'Configuration and reporting', audience: 'admin', path: '/admin' },
+  { id: 'home', blurb: 'Where you left off and what’s next', audience: 'everyone', path: '/' },
+  { id: 'growth', blurb: 'Everything that’s yours', audience: 'everyone', path: '/growth' },
+  { id: 'explore', blurb: 'What you could do next', audience: 'everyone', path: '/explore' },
+  { id: 'team', blurb: 'People you look after', audience: 'leader', path: '/team' },
+  { id: 'admin', blurb: 'Configuration and reporting', audience: 'admin', path: '/admin' },
 ]
 
 export const ITEMS: ItemDef[] = [
-  { id: 'home', space: 'home', label: 'Home', path: '/', description: 'Your summary, what’s due and one next step', synonyms: ['dashboard', 'start'] },
+  { id: 'home', space: 'home', label: '{space.home}', path: '/', description: 'Your summary, what’s due and one next step', synonyms: ['dashboard', 'start'] },
 
-  { id: 'growth-overview', space: 'growth', label: 'Overview', path: '/growth', description: 'A summary of everything that’s yours', synonyms: ['profile', 'my profile'] },
-  { id: 'skills', space: 'growth', label: 'Skills', path: '/growth/skills', description: 'Rate your skills and ask for feedback', synonyms: ['talents', 'top skills', 'competencies', 'capabilities', 'assessment', 'self-assessment', 'rate my skills', 'feedback'] },
-  { id: 'targets', space: 'growth', label: 'Target roles', path: '/growth/targets', description: 'Roles you’re aiming for and how close you are', synonyms: ['target roles', 'goals', 'aspirations', 'next role'] },
-  { id: 'plan', space: 'growth', label: 'My plan', path: '/growth/plan', description: 'Saved paths, applications, mentors, learning and goals', synonyms: ['development plan', 'my stuff', 'applications', 'saved', 'idp', 'goals'] },
+  { id: 'growth-overview', space: 'growth', label: 'Profile', path: '/growth', description: 'You, your {role.one} and a summary of everything that’s yours', synonyms: ['profile', 'my profile', 'overview'] },
+  { id: 'skills', space: 'growth', label: '{skill.many}', path: '/growth/skills', description: 'Rate your {skill.many} and ask for feedback', synonyms: ['talents', 'top skills', 'competencies', 'capabilities', 'assessment', 'self-assessment', 'rate my skills', 'feedback'] },
+  { id: 'targets', space: 'growth', label: 'Target {role.many}', path: '/growth/targets', description: '{role.many} you’re aiming for and how close you are', synonyms: ['target roles', 'aspirations', 'next role', 'career goals'] },
+  { id: 'plan', space: 'growth', label: '{plan.one}', path: '/growth/plan', description: 'Saved {path.many}, applications, {mentor.many}, learning and goals', synonyms: ['my plan', 'development plan', 'my stuff', 'applications', 'saved', 'idp', 'goals'] },
   { id: 'about', space: 'growth', label: 'About me', path: '/growth/about', description: 'Your values, strengths and work style', synonyms: ['personalize', 'personalise', 'reflect', 'values', 'fuelvalues', 'career engagers', 'work style', 'fuelfit', 'agility'] },
 
-  { id: 'paths', space: 'explore', label: 'Career paths', path: '/explore/paths', description: 'Where your skills could take you', synonyms: ['journeys', 'career journeys', 'moves', 'roles'] },
-  { id: 'gigs', space: 'explore', label: 'Gigs', path: '/explore/gigs', description: 'Short projects to grow or share your skills', synonyms: ['projects', 'stretch assignments', 'opportunities', 'marketplace'] },
-  { id: 'mentors', space: 'explore', label: 'Mentors', path: '/explore/mentors', description: 'People who can help you grow a skill', synonyms: ['coach', 'coaching', 'mentoring', 'mentor hub'] },
-  { id: 'learning', space: 'explore', label: 'Learning', path: '/explore/learning', description: 'Courses and resources for your skills', synonyms: ['learn+', 'learn', 'courses', 'training'] },
-  { id: 'vacancies', space: 'explore', label: 'Vacancies', path: '/explore/vacancies', description: 'Open roles in the organisation', synonyms: ['jobs', 'open roles', 'internal jobs'] },
+  { id: 'explore-overview', space: 'explore', label: 'Overview', path: '/explore', description: 'Everything you could do next, matched to your {skill.many}', synonyms: ['opportunities', 'explore', 'browse'] },
+  { id: 'paths', space: 'explore', label: 'Career {path.many}', path: '/explore/paths', description: 'Where your {skill.many} could take you', synonyms: ['journeys', 'career journeys', 'moves', 'roles'] },
+  { id: 'gigs', space: 'explore', label: '{gig.many}', path: '/explore/gigs', description: 'Short projects to grow or share your {skill.many}', synonyms: ['projects', 'stretch assignments', 'marketplace', 'gig marketplace'] },
+  { id: 'mentors', space: 'explore', label: '{mentor.many}', path: '/explore/mentors', description: 'People who can help you grow a {skill.one}', synonyms: ['coach', 'coaching', 'mentoring', 'mentor hub'] },
+  { id: 'learning', space: 'explore', label: 'Learning', path: '/explore/learning', description: '{course.many} and resources for your {skill.many}', synonyms: ['learn+', 'learn', 'courses', 'training'] },
+  { id: 'vacancies', space: 'explore', label: '{vacancy.many}', path: '/explore/vacancies', description: 'Open {role.many} in the organisation', synonyms: ['jobs', 'open roles', 'internal jobs'] },
 
-  { id: 'team', space: 'team', label: 'Team', path: '/team', description: 'Your reports and what they need from you', synonyms: ['team view', 'leader view', 'team coach'] },
-  { id: 'reviews', space: 'team', label: 'Reviews and ratings', path: '/team/reviews', description: 'Rate your reports’ skills', synonyms: ['rate team', 'performance', 'evaluations', 'fuelfactors'] },
-  { id: 'mentees', space: 'team', label: 'Mentees', path: '/team/mentees', description: 'People you mentor', synonyms: ['my mentees'] },
+  { id: 'team', space: 'team', label: 'Overview', path: '/team', description: 'Your reports and what they need from you', synonyms: ['team view', 'leader view', 'team coach', 'my reports'] },
+  { id: 'reviews', space: 'team', label: '{skill.one} ratings', path: '/team/reviews', description: 'Rate your reports’ {skill.many} for the {review.one} cycle', synonyms: ['reviews', 'reviews and ratings', 'rate team', 'performance', 'evaluations', 'fuelfactors'] },
+  { id: 'mentees', space: 'team', label: '{mentee.many}', path: '/team/mentees', description: 'People you mentor', synonyms: ['my mentees'] },
 
   { id: 'admin', space: 'admin', label: 'Admin', path: '/admin', description: 'Skills Studio, blueprint, reports and configuration', synonyms: ['skills studio', 'talent blueprint', 'reports', 'analytics', 'insights'] },
 ]
@@ -71,6 +86,9 @@ export interface TenantConfig {
   name: string
   note: string
   spaceLabels: Partial<Record<SpaceId, string>>
+  /** Renamed nouns. These flow into every item label and line of copy that uses them. */
+  terms: Partial<Record<TermId, Term>>
+  /** Rare per-item overrides, for when a client's page name isn't just its noun. */
   itemLabels: Partial<Record<ItemId, string>>
   hidden: ItemId[]
   order: Partial<Record<SpaceId, ItemId[]>>
@@ -84,6 +102,7 @@ export const TENANTS: TenantConfig[] = [
     name: 'Default labels',
     note: 'Fuel50’s canonical names',
     spaceLabels: {},
+    terms: {},
     itemLabels: {},
     hidden: [],
     order: {},
@@ -94,32 +113,72 @@ export const TENANTS: TenantConfig[] = [
     name: 'Northbank (renamed)',
     note: 'A bank that renames items, hides Vacancies and reorders Explore',
     spaceLabels: { growth: 'My development', explore: 'Opportunities' },
-    itemLabels: { skills: 'Talents', mentors: 'Coach', paths: 'Journeys', plan: 'Development plan', about: 'Personalize', learning: 'Learn+' },
+    terms: { skill: ['talent', 'talents'], mentor: ['coach', 'coaches'], path: ['journey', 'journeys'], plan: ['development plan', 'development plans'] },
+    itemLabels: { mentors: 'Coach', paths: 'Journeys', plan: 'Development plan', about: 'Personalize', learning: 'Learn+' },
     hidden: ['vacancies'],
-    order: { explore: ['gigs', 'mentors', 'paths', 'learning', 'vacancies'] },
+    order: { explore: ['explore-overview', 'gigs', 'mentors', 'paths', 'learning', 'vacancies'] },
     startHere: ['skills', 'about', 'gigs'],
   },
 ]
+
+/** A client config with its full vocabulary filled in: defaults, then the client's renames. */
+export interface Tenant extends Omit<TenantConfig, 'spaceLabels' | 'terms'> {
+  spaceLabels: Record<SpaceId, string>
+  terms: Record<TermId, Term>
+}
+
+export function resolveTenant(config: TenantConfig, content: Content = CONTENT): Tenant {
+  return {
+    ...config,
+    spaceLabels: { ...content.spaces, ...config.spaceLabels },
+    terms: { ...content.terms, ...config.terms },
+  }
+}
+
+export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+/** The word for a term: plural unless `n` is 1. */
+export const term = (t: Pick<Tenant, 'terms'>, id: TermId, n = 2) => t.terms[id][n === 1 ? 0 : 1]
+
+/** “a gig”, “an expert”. Good enough for English labels; localisation needs real grammar. */
+export const withArticle = (word: string) => (/^[aeiou]/i.test(word) ? 'an ' : 'a ') + word
+
+/** Fill `{skill.many}` / `{role.one}` / `{space.home}` placeholders from a vocabulary. */
+export function fill(template: string, t: Pick<Tenant, 'terms' | 'spaceLabels'>): string {
+  return template.replace(/\{(\w+)\.(\w+)\}/g, (_, a: string, b: string) =>
+    a === 'space' ? t.spaceLabels[b as SpaceId] : t.terms[a as TermId][b === 'one' ? 0 : 1])
+}
+
+const label = (template: string, t: Pick<Tenant, 'terms' | 'spaceLabels'>) => cap(fill(template, t))
+const CANONICAL = resolveTenant({ id: '', name: '', note: '', spaceLabels: {}, terms: {}, itemLabels: {}, hidden: [], order: {}, startHere: [] })
 
 export interface ResolvedItem extends ItemDef {
   label: string
   canonicalLabel: string
 }
 
-export function resolveItem(tenant: TenantConfig, id: ItemId): ResolvedItem | null {
+export function resolveItem(tenant: Tenant, id: ItemId): ResolvedItem | null {
   const def = ITEMS.find(i => i.id === id)
   if (!def || tenant.hidden.includes(id)) return null
-  return { ...def, canonicalLabel: def.label, label: tenant.itemLabels[id] ?? def.label }
+  return {
+    ...def,
+    canonicalLabel: label(def.label, CANONICAL),
+    label: tenant.itemLabels[id] ?? label(def.label, tenant),
+    description: label(def.description, tenant),
+  }
 }
 
-export function spaceLabel(tenant: TenantConfig, id: SpaceId): string {
-  return tenant.spaceLabels[id] ?? SPACES.find(s => s.id === id)!.label
+export function spaceLabel(tenant: Tenant, id: SpaceId): string {
+  return tenant.spaceLabels[id]
 }
 
-export function itemsInSpace(tenant: TenantConfig, space: SpaceId): ResolvedItem[] {
+export function itemsInSpace(tenant: Tenant, space: SpaceId): ResolvedItem[] {
   const ids = tenant.order[space] ?? ITEMS.filter(i => i.space === space).map(i => i.id)
   return ids.map(id => resolveItem(tenant, id)).filter((x): x is ResolvedItem => !!x)
 }
+
+/** A space's own page: the item at the space's path. Its title and breadcrumb are the space's name. */
+export const isLanding = (item: Pick<ItemDef, 'space' | 'path'>) => SPACES.find(s => s.id === item.space)?.path === item.path
 
 export type Role = 'employee' | 'leader'
 
