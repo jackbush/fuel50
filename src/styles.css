@@ -39,11 +39,13 @@ kbd { font: 500 var(--fs-xs)/1 ui-monospace, 'SF Mono', monospace; border: var(-
 .spaces { display: flex; gap: var(--s-1); list-style: none; margin: 0 0 0 var(--s-4); padding: 0; }
 .has-menu { position: relative; }
 .split { display: flex; align-items: center; }
-.split > .space:first-child { padding-right: var(--s-1); }
-.caret-btn { padding: 0 var(--s-2); }
-.space { text-decoration: none; display: inline-flex; align-items: center; gap: var(--s-1); height: var(--control); background: none; border: 0; color: var(--chrome-ink); padding: 0 var(--s-3); border-radius: var(--r-md); font-weight: 500; white-space: nowrap; transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
+.split > .space:first-child { --pad-r: var(--s-1); }
+.caret-btn { --pad-l: var(--s-2); --pad-r: var(--s-2); }
+.space { text-decoration: none; display: inline-flex; align-items: center; gap: var(--s-1); height: var(--control); background: none; border: 0; color: var(--chrome-ink); padding: 0 var(--pad-r, var(--s-3)) 0 var(--pad-l, var(--s-3)); border-radius: var(--r-md); font-weight: 500; position: relative; white-space: nowrap; transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
 .space:hover, .space[aria-expanded='true'] { background: var(--chrome-hover); color: #fff; }
-.space.current { color: #fff; font-weight: 600; box-shadow: inset 0 -3px 0 var(--highlight); border-radius: var(--r-md) var(--r-md) 0 0; }
+.space.current { color: #fff; font-weight: 600; border-radius: var(--r-md) var(--r-md) 0 0; }
+/* The underline spans the label, not the padding around it. */
+.space.current::after { content: ''; position: absolute; left: var(--pad-l, var(--s-3)); right: var(--pad-r, var(--s-3)); bottom: 0; height: 3px; background: var(--highlight); }
 .caret { opacity: .7; transition: transform var(--dur) var(--ease); }
 .space[aria-expanded='true'] .caret { transform: rotate(180deg); }
 .menu { position: absolute; top: calc(100% + var(--s-2)); left: 0; min-width: 340px; background: var(--surface); color: var(--ink); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); padding: var(--s-2); z-index: 30; animation: drop var(--dur) var(--ease); }
@@ -450,6 +452,7 @@ h2.section + .page-sub { margin-top: calc(var(--s-2) - var(--s-4)); }
 }
 @media (max-width: 520px) {
   .logo img { height: 24px; }
-  .space { padding: 0 var(--s-2); }
+  .space { --pad-l: var(--s-2); --pad-r: var(--s-2); }
+  .split > .space:first-child { --pad-r: var(--s-1); }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
