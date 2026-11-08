@@ -9,7 +9,7 @@ import './proto.css'
 const MODES: { id: VisitMode; label: string; desc: string; start: string }[] = [
   { id: 'returner', label: 'Returner', desc: 'Back after six months, from a reminder email', start: '/start' },
   { id: 'first', label: 'First visit', desc: 'Home’s to-do follows the client’s rollout order', start: '/' },
-  { id: 'leader', label: 'Weekly manager', desc: 'My team and inline reviews', start: '/team' },
+  { id: 'leader', label: 'Weekly manager', desc: 'Your team and inline reviews', start: '/team' },
 ]
 
 const OPEN_KEY = 'fuel50-proto-open'

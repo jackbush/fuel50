@@ -1,28 +1,40 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store'
-import { cap, term } from '../ia'
+import { cap, resolveItem, term, TEAM_TOOLS } from '../ia'
 import { LEVELS, reports, skillById, DUE_DATE, type Level } from '../data'
 import { Card, Empty, Icon, PageHeader } from '../components/ui'
 
+/** Your team: what's built for managers (reports, ratings, mentees), then what's still to come. */
 export function Team() {
-  const { state, tenant } = useStore()
+  const { state, tenant, role } = useStore()
+  const ratings = resolveItem(tenant, 'reviews'), mentees = resolveItem(tenant, 'mentees')
   return (
     <>
-      <PageHeader item="team" />
-      <ul className="cards">
-        {reports.map(r => {
-          const left = r.dueSkills.filter(s => state.teamRatings[r.id]?.[s] === undefined).length
-          return (
-            <li key={r.id}><div className="card">
-              <h2 className="card-title">{r.name}</h2>
-              <span className="card-meta">{r.role}</span>
-              <p>{r.dueSkills.length === 0 ? 'Nothing due' : left ? `${left} ${term(tenant, 'skill', left)} to rate by ${DUE_DATE}` : <span className="status ok">All rated</span>}</p>
-              {left > 0 && <div className="row"><Link className="btn" to={`/team/reviews?p=${r.id}`}>Rate {term(tenant, 'skill')}</Link></div>}
-            </div></li>
-          )
-        })}
-      </ul>
+      <PageHeader item="team" sub={role === 'leader' ? 'Your reports and what they need from you.' : 'For people with reports. You don’t have any, so there’s nothing here for you yet.'} />
+      {role === 'leader' && <>
+        <ul className="cards">
+          {reports.map(r => {
+            const left = r.dueSkills.filter(s => state.teamRatings[r.id]?.[s] === undefined).length
+            return (
+              <li key={r.id}><div className="card">
+                <h2 className="card-title">{r.name}</h2>
+                <span className="card-meta">{r.role}</span>
+                <p>{r.dueSkills.length === 0 ? 'Nothing due' : left ? `${left} ${term(tenant, 'skill', left)} to rate by ${DUE_DATE}` : <span className="status ok">All rated</span>}</p>
+                {left > 0 && <div className="row"><Link className="btn" to={`/team/reviews?p=${r.id}`}>Rate {term(tenant, 'skill')}</Link></div>}
+              </div></li>
+            )
+          })}
+        </ul>
+        <p className="row team-links">{ratings && <Link className="more" to={ratings.path}>{ratings.label} <Icon name="arrow" /></Link>}{mentees && <Link className="more" to={mentees.path}>{mentees.label} <Icon name="arrow" /></Link>}</p>
+      </>}
+      <section aria-labelledby="coming-h">
+        <h2 id="coming-h" className={role === 'leader' ? 'section' : 'section-first'}>Still to come in {cap(tenant.spaceLabels.team)}</h2>
+        <p className="page-sub">Out of scope for this prototype. In the product, you’d find these here.</p>
+        <ul className="moved-list">
+          {TEAM_TOOLS.map(t => <li key={t.name}><strong>{t.name}</strong><span className="meta">{t.does}</span></li>)}
+        </ul>
+      </section>
     </>
   )
 }

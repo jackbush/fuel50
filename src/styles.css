@@ -38,6 +38,9 @@ kbd { font: 500 var(--fs-xs)/1 ui-monospace, 'SF Mono', monospace; border: var(-
 .logo img { display: block; height: 30px; width: auto; }
 .spaces { display: flex; gap: var(--s-1); list-style: none; margin: 0 0 0 var(--s-4); padding: 0; }
 .has-menu { position: relative; }
+.split { display: flex; align-items: center; }
+.split > .space:first-child { padding-right: var(--s-1); }
+.caret-btn { padding: 0 var(--s-2); }
 .space { text-decoration: none; display: inline-flex; align-items: center; gap: var(--s-1); height: var(--control); background: none; border: 0; color: var(--chrome-ink); padding: 0 var(--s-3); border-radius: var(--r-md); font-weight: 500; white-space: nowrap; transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
 .space:hover, .space[aria-expanded='true'] { background: var(--chrome-hover); color: #fff; }
 .space.current { color: #fff; font-weight: 600; box-shadow: inset 0 -3px 0 var(--highlight); border-radius: var(--r-md) var(--r-md) 0 0; }
@@ -90,6 +93,8 @@ main > * { animation: fade var(--dur) var(--ease); }
 .page-actions { display: flex; gap: var(--s-2); flex: none; }
 .section { margin: var(--section) 0 var(--s-4); }
 .section-first { margin-bottom: var(--s-2); }
+.team-links { margin-top: var(--gap); gap: var(--s-5); }
+h2.section + .page-sub { margin-top: calc(var(--s-2) - var(--s-4)); }
 .moved-list { list-style: none; margin: var(--s-5) 0 0; padding: 0; background: var(--surface); border: var(--bw) solid var(--line); border-radius: var(--r-lg); }
 .moved-list li { display: grid; gap: 2px; padding: var(--s-4) var(--s-5); border-bottom: var(--bw) solid var(--line); }
 .moved-list li:last-child { border-bottom: 0; }
@@ -127,7 +132,7 @@ main > * { animation: fade var(--dur) var(--ease); }
 .home-subheading:has(+ .home-sub) { margin-bottom: var(--s-1); }
 .home-block { scroll-margin-top: calc(var(--topbar) + var(--s-6)); }
 .home-sub { margin-bottom: var(--s-4); }
-.tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-3); }
+.tasks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
 .card.task { display: flex; align-items: center; justify-content: space-between; gap: var(--s-6); margin: 0; }
 .card.task > * + * { margin-top: 0; }
 .task-text { display: grid; gap: var(--s-1); min-width: 0; }
@@ -396,7 +401,7 @@ main > * { animation: fade var(--dur) var(--ease); }
 /* ---------- small screens ---------- */
 /* Compact top bar: on narrower screens, and whenever the prototype sidebar takes 360px of the width. */
 /* Wide and with room: search sits in the middle of the bar. */
-@media (min-width: 1240px) {
+@media (min-width: 1380px) {
   html:not([data-proto-open]) .search-trigger { position: absolute; left: 50%; transform: translateX(-50%); width: min(420px, 32vw); margin: 0; }
   html:not([data-proto-open]) .coach-trigger { margin-left: auto; }
 }
@@ -437,6 +442,7 @@ main > * { animation: fade var(--dur) var(--ease); }
   .card.gap { grid-template-columns: 1fr; row-gap: var(--s-4); }
   .path { flex-direction: column; }
   .path li + li::before { content: '↓'; }
+  .tasks { grid-template-columns: 1fr; }
   .card.task { flex-direction: column; align-items: stretch; gap: var(--s-4); }
   .card.task .btn { align-self: flex-start; }
   .plan-tiles { grid-template-columns: 1fr; }

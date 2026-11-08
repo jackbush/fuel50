@@ -25,7 +25,7 @@ export function Home() {
         </div>
       </div>
       <section aria-labelledby="todo-h" className="home-section">
-        <h2 id="todo-h" className="home-heading">To do</h2>
+        <h2 id="todo-h" className="visually-hidden">To do</h2>
         <TaskList />
       </section>
       <GrowthSection />

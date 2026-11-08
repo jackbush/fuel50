@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import { ADMIN_TOOLS } from '../ia'
+import { ADMIN_TOOLS, spaceLabel } from '../ia'
+import { useStore } from '../store'
 import { PageHeader } from '../components/ui'
 
 export function Admin() {
@@ -23,5 +24,6 @@ export function Admin() {
 }
 
 export function NotFound() {
-  return (<><PageHeader title="Page not found" sub="It may have moved, or your organisation may not use it." /><Link to="/">Go to Home</Link></>)
+  const { tenant } = useStore()
+  return (<><PageHeader title="Page not found" sub="It may have moved, or your organisation may not use it." /><Link to="/">Go to {spaceLabel(tenant, 'home')}</Link></>)
 }

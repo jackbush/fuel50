@@ -36,9 +36,9 @@ with sync_playwright() as p:
     pg.get_by_role("button", name="Apply", exact=True).click(); pg.wait_for_timeout(150)
     pg.get_by_label("Yes").check(); pg.get_by_role("button", name="Send application").click(); pg.wait_for_timeout(300); shot("06_applied_toast")
     pg.get_by_role("button", name="← Back to your skills results").click(); pg.wait_for_timeout(300); shot("07_back")
-    pg.get_by_role("link", name="Fuel50 Home").click(); pg.wait_for_timeout(300); shot("08_home_after")
+    pg.get_by_role("link", name="Fuel50: Your growth").click(); pg.wait_for_timeout(300); shot("08_home_after")
     # nav menu with children
-    pg.get_by_role("button", name="Explore", exact=False).first.click(); pg.wait_for_timeout(150); shot("09_explore_menu")
+    pg.locator(".caret-btn").click(); pg.wait_for_timeout(150); shot("09_explore_menu")
     pg.keyboard.press("Escape")
     # search for a synonym
     pg.keyboard.press("Control+k"); pg.wait_for_timeout(150); pg.keyboard.type("talents"); pg.wait_for_timeout(200); shot("10_search_talents")

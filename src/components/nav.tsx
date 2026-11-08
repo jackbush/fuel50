@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { cap, fill, isLanding, term, itemsInSpace, spaceLabel, spaceBlurb, visibleSpaces, itemForPath, SPACES, resolveItem, type ItemId } from '../ia'
+import { cap, fill, isLanding, term, pageTitle, spaceLabel, spaceBlurb, itemsInSpace, visibleSpaces, itemForPath, SPACES, resolveItem, type ItemId } from '../ia'
 import { tasks } from '../logic'
 import { gigById, person } from '../data'
 import { Icon } from './ui'
@@ -35,6 +35,9 @@ export function TopNav({ onSearch, onCoach }: { onSearch: () => void; onCoach: (
   const loc = useLocation()
   const ref = useRef<HTMLDivElement>(null)
   const current = itemForPath(loc.pathname)
+  const menu = itemsInSpace(tenant, 'explore')
+  // Beside Your growth: the other spaces with their own top-bar link (Your team and Admin, for managers).
+  const links = visibleSpaces(role).filter(sp => sp.nav === 'link' && sp.id !== 'home')
 
   useEffect(() => setOpen(null), [loc.pathname])
   useEffect(() => {
@@ -56,50 +59,43 @@ export function TopNav({ onSearch, onCoach }: { onSearch: () => void; onCoach: (
   return (
     <header className="topbar" ref={ref}>
       <a className="skip" href="#main">Skip to content</a>
-      <Link className="logo" to="/" onClick={clearOrigin} aria-label={`Fuel50 ${spaceLabel(tenant, 'home')}`}>
+      <Link className="logo" to="/" onClick={clearOrigin} aria-label={`Fuel50: ${spaceLabel(tenant, 'home')}`}>
         <img src={logo} alt="" width={174} height={60} />
       </Link>
       <nav aria-label="Main">
         <ul className="spaces">
-          {visibleSpaces(role).filter(sp => sp.nav !== 'account').map(sp => {
-            const isCurrent = current?.space === sp.id
-            if (sp.nav === 'link') return (
-              <li key={sp.id}>
-                <Link to={sp.path} onClick={clearOrigin} className={'space' + (isCurrent ? ' current' : '')} aria-current={loc.pathname === sp.path ? 'page' : isCurrent ? 'true' : undefined}>{spaceLabel(tenant, sp.id)}</Link>
-              </li>
-            )
-            const items = itemsInSpace(tenant, sp.id)
-            if (items.length === 0) return null
-            const expanded = open === sp.id
-            return (
-              <li key={sp.id} className="has-menu">
-                <button
-                  className={'space' + (isCurrent ? ' current' : '')}
-                  aria-expanded={expanded}
-                  aria-controls={`menu-${sp.id}`}
-                  aria-current={isCurrent ? 'true' : undefined}
-                  onClick={() => setOpen(expanded ? null : sp.id)}
-                >
-                  {spaceLabel(tenant, sp.id)} <span className="caret"><Icon name="chevron" size={14} /></span>
-                </button>
-                {expanded && (
-                  <div className="menu" id={`menu-${sp.id}`}>
-                    <p className="menu-blurb">{spaceBlurb(tenant, sp.id)}</p>
-                    <ul className="plain-menu">
-                      {items.map(it => (
-                        <li key={it.id}>
-                          <Link to={it.path} onClick={clearOrigin} aria-current={current?.id === it.id ? 'page' : undefined} className={'menu-item' + (current?.id === it.id ? ' current' : '')}>
-                            <span className="menu-label">{it.label}</span>
-                            <span className="menu-desc">{it.description}</span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </li>
-            )
-          })}
+          {/* The link goes Home; the chevron opens Explore. */}
+          <li className="has-menu split">
+            <Link to="/" onClick={clearOrigin} className={'space' + (current?.space === 'home' ? ' current' : '')} aria-current={loc.pathname === '/' ? 'page' : undefined}>{spaceLabel(tenant, 'home')}</Link>
+            <button
+              className={'space caret-btn' + (current?.space === 'explore' ? ' current' : '')}
+              aria-expanded={open === 'more'}
+              aria-controls="menu-more"
+              aria-label={`More: ${menu.map(it => pageTitle(tenant, it)).join(', ')}`}
+              onClick={() => setOpen(open === 'more' ? null : 'more')}
+            >
+              <span className="caret"><Icon name="chevron" size={16} /></span>
+            </button>
+            {open === 'more' && (
+              <div className="menu" id="menu-more">
+                <ul className="plain-menu">
+                  {menu.map(it => (
+                    <li key={it.id}>
+                      <Link to={it.path} onClick={clearOrigin} aria-current={current?.id === it.id ? 'page' : undefined} className={'menu-item' + (current?.id === it.id ? ' current' : '')}>
+                        <span className="menu-label">{pageTitle(tenant, it)}</span>
+                        <span className="menu-desc">{isLanding(it) ? spaceBlurb(tenant, it.space) : it.description}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </li>
+          {links.map(sp => (
+            <li key={sp.id}>
+              <Link to={sp.path} onClick={clearOrigin} className={'space' + (current?.space === sp.id ? ' current' : '')} aria-current={loc.pathname === sp.path ? 'page' : current?.space === sp.id ? 'true' : undefined}>{spaceLabel(tenant, sp.id)}</Link>
+            </li>
+          ))}
         </ul>
       </nav>
       <button className="search-trigger" onClick={onSearch} aria-label="Search" aria-keyshortcuts="Control+K Meta+K /">
@@ -129,9 +125,6 @@ function AvatarMenu({ open, setOpen, onNavigate }: { open: boolean; setOpen: (o:
           <ul className="plain-menu">
             {profile && <li><Link className="menu-item" to={profile.path} onClick={onNavigate}><span className="menu-label">{spaceLabel(tenant, 'profile')}</span><span className="menu-desc">{spaceBlurb(tenant, 'profile')}</span></Link></li>}
             {tasksItem && <li><Link className="menu-item" to={tasksItem.path} onClick={onNavigate}><span className="menu-label">{tasksItem.label} ({n}){n > 0 && <span className="alert-dot inline" aria-hidden />}</span></Link></li>}
-            <li role="separator" className="menu-sep" />
-            {/* Only admins see this in the product; the prototype shows it so the Admin space can be reached. */}
-            <li><Link className="menu-item" to="/admin" onClick={onNavigate}><span className="menu-label">Open {spaceLabel(tenant, 'admin')}</span><span className="menu-desc">Set up skills, roles and reports for your organisation</span></Link></li>
           </ul>
         </div>
       )}

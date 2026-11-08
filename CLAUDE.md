@@ -6,26 +6,27 @@ Working prototype for the Fuel50 Product Design Lead take-home: “improve how p
 
 **The six-monthly returner.** Kimberley Thomas, Product Sales Manager (persona from the Fuel50 demo tenant). Her manager’s cycle sends her a reminder email. The journey:
 
-1. `/start` — reminder email: “Self-assessment due 24 June” deep-links into Home › Update your skills (straight to the task, not the Home page).
-2. Skills — “Since your last visit on 12 December”: 3 skills need attention; 15 carry over.
+1. `/start` — reminder email: “Self-assessment due 24 June” deep-links into Your growth › Update your skills (straight to the task, not the Home page).
+2. Update your skills — “Since your last visit on 12 December”: 3 skills need attention; 15 carry over.
 3. Rate only the 3 that need attention (pre-filled from last time where possible).
 4. Done — readiness for target role + **one next step** for the biggest gap (gig · mentor · course).
 5. Follow a link into Explore › Gigs — breadcrumb shows where you are; **“← Back to your skills results”** returns you.
-6. Apply → it lands in Home’s plan (“Last updated” today), and Home’s to-do now leads with the next task.
+6. Apply → it lands in your plan on Your growth (“Last updated” today), and the to-do now leads with the next task.
 
-Other visit types (switch in the prototype sidebar): **First visit** (Home’s to-do follows the client’s rollout order; gaps wait for ratings) and **Weekly manager** (My team appears; Skill ratings lets you rate a report’s skills inline, one click per skill).
+Other visit types (switch in the prototype sidebar): **First visit** (Home’s to-do follows the client’s rollout order; gaps wait for ratings) and **Weekly manager** (Your team shows your reports; Skill ratings lets you rate a report’s skills inline, one click per skill).
 
 ## The IA model (read this before changing navigation or labels)
 
 `src/ia.ts` is the source of truth.
 
-- **Spaces are fixed:** Home · Explore · My team (leaders) in the top bar; Profile and Admin in the account menu. Clients may rename a space, never remove it.
-- **Home is one page, not a menu:** a plain link in the top bar. Top to bottom, two h2 sections: **To do** (`tasks()`: the first gets the primary button, the rest secondary) and **Your growth**: your saved career path (its target role showing how ready you are), then **Your plan** (three tiles, gigs, mentors and learning, each name linking to its Explore page, gigs and mentors badging how many are recommended (`recommendedActions()`); “Last updated …”), then **Skills to develop** (every gap, biggest first, with its options). **Every journey starts at Home.** Its other items aren’t in a menu: Outstanding tasks (`/tasks`, from the account menu) and Update your skills (the rating task).
+- **Spaces are fixed:** Home (labelled “Your growth”) · Explore · Your team · Admin, plus Profile in the account menu. Clients may rename a space, never remove it.
+- **The top bar:** “Your growth” links Home, and a chevron beside it opens Explore’s menu (its overview listed as “Explore”). Managers also get **Your team** and **Admin** links beside it (the prototype has no admin login, so its manager stands in). The account menu holds Profile and Outstanding tasks.
+- **Home is one page:** top to bottom, **to-do** cards (half width; its h2 is visually hidden) (`tasks()`: the first gets the primary button, the rest secondary) then **Your growth** (h2): your saved career path (its target role showing how ready you are), then **Your plan** (three tiles, gigs, mentors and learning, each name linking to its Explore page, gigs and mentors badging how many are recommended (`recommendedActions()`); “Last updated …”), then **Skills to develop** (every gap, biggest first, with its options). **Every journey starts at Home.** Its other items aren’t in a menu: Outstanding tasks (`/tasks`, from the account menu) and Update your skills (the rating task).
 - **Explore holds every noun, yours included:** Overview, Skills, Roles, Career paths, Gigs, Mentors, Learning, Vacancies. Gigs, Mentors and Learning list only what helps your growth (`neededSkills()` highlights the skills you need), then a “Search all …” link that's out of scope. Career paths is where you choose your path, each showing how ready you are for its target role; its second step becomes your target role (`targetRole()`), and the skill levels that role needs (`ROLE_TARGETS`) drive your gaps.
 - **Profile** (About me) lives in the account menu, with Outstanding tasks. It’s a task on Home only while it’s unfinished.
-- My team is the people you look after.
+- **Your team** is for managers: reports, Skill ratings and Mentees, then what’s still to come (`TEAM_TOOLS`: succession planning, reviews and goals…), as Admin lists `ADMIN_TOOLS`.
 - **Items have canonical ids** (`skills`, `mentors`, `paths`…). Clients may rename, hide and reorder items (`TenantConfig`); items a client’s order doesn’t list keep their place after the item they follow in `ITEMS`.
-- **Each space has its own page**, listed first in its menu as “Overview” where the space has a menu: the Home page, Explore’s overview, My team’s overview, and About me for Profile. That page is the item at the space’s path (`isLanding`). It is titled with the space’s name (`pageTitle`), its breadcrumb ends at the space, and search lists it under the space’s name. Menus show it first.
+- **Each space has its own page**, the Home page, Explore’s overview, Your team’s page, Admin, and About me for Profile. That page is the item at the space’s path (`isLanding`). It is titled with the space’s name (`pageTitle`), its breadcrumb ends at the space, and search lists it under the space’s name. 
 - **Terms are the key nouns** (skill, role, path, gig, mentor, course, vacancy, plan, review, mentee), each a `[singular, plural]` pair. The default words live in `src/content.json` with the space names; a client’s `terms` rename them. Item labels and descriptions are templates over terms (`Target {role.many}`), so renaming a noun once changes nav, titles, breadcrumbs, search, tasks, toasts and copy. Ids stay internal and in URLs. `itemLabels` is only for a page name that isn’t just its noun (Northbank’s “Coach”).
 - **Never hard-code an item’s label or a key noun in UI.** Go through `resolveItem(tenant, id)` / `itemsInSpace` / `spaceLabel` / `pageTitle` / `term(tenant, id, n)`, or `<PageHeader item="…">`. In running copy use the noun (`term(tenant, 'plan', 1)`), not an item’s label: some labels are verb phrases (“Update your skills”). Stored strings (toasts) may hold `{skill.many}` placeholders; `fill()` resolves them when shown. That is what keeps everything consistent when a client renames things.
 - Hidden items must disappear from nav, search and suggestions. Search explains when a query matches a hidden feature, or an admin tool (`ADMIN_TOOLS` in `src/ia.ts`, the tools moved out of employees’ menus; the Admin page lists them).
@@ -34,7 +35,7 @@ Other visit types (switch in the prototype sidebar): **First visit** (Home’s t
 
 ## Wayfinding patterns
 
-- **Child items visible:** Explore and My team open a menu listing their items with one-line descriptions; Home is a link (`TopNav` in `src/components/nav.tsx`).
+- **Child items visible:** the chevron beside Your growth opens Explore’s items with one-line descriptions (`TopNav` in `src/components/nav.tsx`).
 - **Breadcrumbs** on every inner page, derived from the URL (`Breadcrumbs`).
 - **Back to where you were:** any link that crosses into another module uses `<CrossLink to from="your target role">`. It stores an origin; `ReturnBanner` shows “← Back to …”. Main-nav jumps clear the origin.
 - **One list of tasks:** `tasks()` in `src/logic.ts` is the only place that decides “what next”. Home’s to-do, the tasks page, the account menu’s dot and count, and the career coach all read it, so they always agree. On a first visit it follows the client’s `startHere` order.
@@ -81,7 +82,7 @@ Other visit types (switch in the prototype sidebar): **First visit** (Home’s t
 - “Since your last visit” is hard-coded; could derive from a last-visit timestamp and change log.
 - English plurals and articles only (`withArticle`). Localising terms needs real grammar per language.
 - Ratings for unchanged skills are carried over silently; consider an “older than N months” rule.
-- My team › Succession and Hiring aren’t built; Admin is a placeholder; custom career paths say they’re out of scope.
+- Your team’s succession planning, reviews and goals and the rest aren’t built (its page says so); Admin is a placeholder; custom career paths say they’re out of scope.
 - The career coach is scripted. A real one would be an LLM with the same state and the same actions as tools. In Northbank, “coach” is also the word for mentor, so the chat’s name would need a client setting.
 - Only three target roles have skill levels (`ROLE_TARGETS` adjusts the base on a few skills).
 - Instrumentation idea: return-to-origin rate (share of CrossLink journeys that end with “Back to …” rather than browser back or the logo).

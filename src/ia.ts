@@ -4,8 +4,9 @@
  * Principle: structure is fixed, names are the client's.
  * - SPACES are fixed. A client can rename a space but not remove it.
  * - ITEMS have a canonical id. A client can rename, hide and reorder items.
- * - Home holds what to do, your plan and your growth, on one page. Explore holds every
- *   noun, yours included (skills, roles, paths, gigs…).
+ * - Home (“Your growth” in the bar) holds what to do, your plan and your growth, on one
+ *   page. Its chevron opens Explore: every noun, yours included. Managers also get Your
+ *   team and Admin beside it.
  * - TERMS are the key nouns (skill, gig, mentor…). Ids are internal and stay in
  *   URLs; the words come from `content.json`, then the client's renames. Item
  *   labels and descriptions are templates over terms (`{skill.many}`), so
@@ -49,16 +50,25 @@ export interface SpaceDef {
   blurb: string
   audience: Audience
   path: string
-  /** How it's reached: a menu or a plain link in the top bar, or the account menu. */
-  nav: 'menu' | 'link' | 'account'
+  /** How it's reached: a top-bar link (Home's has a chevron opening Explore), that menu, or the account menu. */
+  nav: 'link' | 'menu' | 'account'
 }
 
 export const SPACES: SpaceDef[] = [
   { id: 'home', blurb: 'What to do, your {plan.one} and your growth', audience: 'everyone', path: '/', nav: 'link' },
   { id: 'explore', blurb: 'Everything there is, yours included', audience: 'everyone', path: '/explore', nav: 'menu' },
-  { id: 'team', blurb: 'People you look after', audience: 'leader', path: '/team', nav: 'menu' },
+  { id: 'team', blurb: 'People you look after', audience: 'leader', path: '/team', nav: 'link' },
   { id: 'profile', blurb: 'Your values, strengths and work style', audience: 'everyone', path: '/growth/about', nav: 'account' },
-  { id: 'admin', blurb: 'Configuration and reporting', audience: 'admin', path: '/admin', nav: 'account' },
+  { id: 'admin', blurb: 'Configuration and reporting', audience: 'admin', path: '/admin', nav: 'link' },
+]
+
+/** What Your team will hold beyond what the prototype builds. The Your team page lists them. */
+export const TEAM_TOOLS = [
+  { name: 'Succession planning', does: 'Who’s ready for key roles, and who could step in' },
+  { name: 'Reviews and goals', does: 'Set team goals and run review conversations' },
+  { name: 'Career conversations', does: 'Guides and notes for one-to-ones about growth' },
+  { name: 'Team skills insight', does: 'Where your team is strong and where gaps cluster' },
+  { name: 'Hiring and internal moves', does: 'Fill open roles from inside the organisation first' },
 ]
 
 /** Tools taken out of employees’ menus and moved to Admin. The Admin page lists them; search finds Admin by their names. */
@@ -86,7 +96,7 @@ export const ITEMS: ItemDef[] = [
   { id: 'learning', space: 'explore', label: 'Learning', path: '/explore/learning', description: '{course.many} and resources for your {skill.many}', synonyms: ['learn+', 'learn', 'courses', 'training'] },
   { id: 'vacancies', space: 'explore', label: '{vacancy.many}', path: '/explore/vacancies', description: 'Open {role.many} in the organisation', synonyms: ['jobs', 'open roles', 'internal jobs'] },
 
-  { id: 'team', space: 'team', label: 'Overview', path: '/team', description: 'Your reports and what they need from you', synonyms: ['team view', 'leader view', 'team coach', 'my reports'] },
+  { id: 'team', space: 'team', label: 'Overview', path: '/team', description: 'Your reports, and the team tools to come', synonyms: ['team view', 'leader view', 'team coach', 'my reports', 'my team', 'succession', ...TEAM_TOOLS.map(t => t.name.toLowerCase())] },
   { id: 'reviews', space: 'team', label: '{skill.one} ratings', path: '/team/reviews', description: 'Rate your reports’ {skill.many} for the {review.one} cycle', synonyms: ['reviews', 'reviews and ratings', 'rate team', 'performance', 'evaluations', 'fuelfactors'] },
   { id: 'mentees', space: 'team', label: '{mentee.many}', path: '/team/mentees', description: 'People you mentor', synonyms: ['my mentees'] },
 
@@ -208,8 +218,9 @@ export const pageTitle = (tenant: Tenant, item: ResolvedItem) => (isLanding(item
 
 export type Role = 'employee' | 'leader'
 
+/** The prototype has no separate admin login: its manager sees Admin too. */
 export function visibleSpaces(role: Role): SpaceDef[] {
-  return SPACES.filter(s => s.audience === 'everyone' || (s.audience === 'leader' && role === 'leader'))
+  return SPACES.filter(s => s.audience === 'everyone' || role === 'leader')
 }
 
 /** The item whose path best matches a pathname (longest prefix). Hidden items still match, so their page has a breadcrumb. */

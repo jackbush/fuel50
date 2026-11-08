@@ -93,7 +93,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
     ...tenant.hidden.map(id => ITEMS.find(i => i.id === id)!)
       .filter(def => [fill(def.label, tenant), ...def.synonyms].some(n => norm(n).startsWith(nq)))
       .map(def => `“${fill(def.label, tenant)}” isn’t used at your organisation.`),
-    ...ADMIN_TOOLS.filter(t => norm(t.name).startsWith(nq))
+    ...(visibleSpaces(role).some(sp => sp.id === 'admin') ? [] : ADMIN_TOOLS).filter(t => norm(t.name).startsWith(nq))
       .map(t => `“${t.name}” is an admin tool, so it isn’t in your menus. Your Fuel50 admin can help.`),
   ]
   let lastGroup = ''
